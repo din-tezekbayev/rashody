@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Учёт расходов</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <main>
+    <header class="page-header">
+      <h1>Расходы</h1>
+      <p>Личный учёт расходов</p>
+    </header>
+
+    <section class="monthly-total" aria-labelledby="monthly-heading">
+      <div>
+        <h2 id="monthly-heading">Итог за текущий месяц</h2>
+        <p id="month-label"></p>
+      </div>
+      <div class="totals" aria-live="polite">
+        <output id="month-total">0 ₸</output>
+        <output id="month-total-usd">0,00 $</output>
+      </div>
+    </section>
+
+    <p id="storage-error" class="error" role="alert" hidden></p>
+    <section class="entry-section" aria-labelledby="entry-heading">
+      <h2 id="entry-heading">Добавить трату</h2>
+      <form id="expense-form" novalidate>
+        <div class="form-grid">
+          <div class="amount-fields">
+            <div class="field">
+              <label for="amount">Сумма</label>
+              <input id="amount" name="amount" type="text" inputmode="numeric" placeholder="5 000" required aria-describedby="amount-error">
+              <p id="amount-error" class="error" hidden></p>
+            </div>
+            <div class="field">
+              <label for="currency">Валюта</label>
+              <select id="currency" name="currency" aria-describedby="currency-error">
+                <option value="KZT" aria-label="Тенге">₸</option>
+                <option value="USD" aria-label="Доллары США">$</option>
+              </select>
+              <p id="currency-error" class="error" hidden></p>
+            </div>
+          </div>
+          <div class="field">
+            <label for="category">Категория</label>
+            <select id="category" name="category" required aria-describedby="category-error"></select>
+            <p id="category-error" class="error" hidden></p>
+          </div>
+          <div class="field">
+            <label for="date">Дата</label>
+            <input id="date" name="date" type="date" required aria-describedby="date-error">
+            <p id="date-error" class="error" hidden></p>
+          </div>
+        </div>
+        <details id="category-details">
+          <summary>Добавить категорию</summary>
+          <div class="category-entry">
+            <div class="field">
+              <label for="new-category">Название категории</label>
+              <input id="new-category" type="text" aria-describedby="new-category-error">
+              <p id="new-category-error" class="error" hidden></p>
+            </div>
+            <button id="save-category" type="button" class="secondary">Сохранить категорию</button>
+          </div>
+        </details>
+        <div class="field comment-field">
+          <label for="comment">Комментарий <span class="optional">необязательно</span></label>
+          <textarea id="comment" name="comment" rows="2" placeholder="На что потратили?"></textarea>
+        </div>
+        <div class="form-footer">
+          <button type="submit">Добавить</button>
+          <p id="save-status" role="status"></p>
+        </div>
+      </form>
+    </section>
+
+    <section class="history-section" aria-labelledby="history-heading">
+      <div class="section-header">
+        <h2 id="history-heading">Список трат</h2>
+        <button id="reset-period" class="secondary" type="button">Все траты</button>
+      </div>
+      <div class="period-fields">
+        <div class="field">
+          <label for="period-from">С</label>
+          <input id="period-from" type="date" aria-describedby="period-error">
+        </div>
+        <div class="field">
+          <label for="period-to">По</label>
+          <input id="period-to" type="date" aria-describedby="period-error">
+        </div>
+      </div>
+      <div class="quick-periods" aria-label="Быстрый выбор периода">
+        <button type="button" class="secondary" data-days="1">За сутки</button>
+        <button type="button" class="secondary" data-days="7">7 дней</button>
+        <button type="button" class="secondary" data-days="14">14 дней</button>
+        <button type="button" class="secondary" data-days="30">Месяц</button>
+      </div>
+      <p id="period-error" class="error" role="alert" hidden></p>
+      <p id="period-summary" aria-live="polite" hidden>Итог за период:
+        <output id="period-total">0 ₸</output>;
+        <output id="period-total-usd">0,00 $</output>
+      </p>
+      <p id="empty-state">Пока нет трат</p>
+      <ul id="expense-list" aria-label="Траты"></ul>
+    </section>
+    <footer>Данные сохраняются в этом браузере.</footer>
+    <noscript><p class="error">Включите JavaScript, чтобы добавлять и просматривать траты.</p></noscript>
+  </main>
+</body>
+</html>
