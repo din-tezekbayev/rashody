@@ -163,6 +163,15 @@ function renderBudgets() {
       list.append(form);
     }
     const amount = data.budgets.find((budget) => budget.month === month && budget.category === category)?.amount;
+    const spent = data.expenses.filter((expense) => expense.currency === "KZT" &&
+      expense.category === category && expense.date.slice(0, 7) === month)
+      .reduce((sum, expense) => sum + expense.amount, 0);
+    const overBudget = amount !== undefined && spent > amount;
+    form.querySelector(".budget-spent").textContent = `Потрачено: ${money(spent, "KZT")}`;
+    const remaining = form.querySelector(".budget-remaining");
+    remaining.textContent = amount === undefined ? "Осталось: —" : overBudget
+      ? `Перерасход: ${money(spent - amount, "KZT")}` : `Осталось: ${money(amount - spent, "KZT")}`;
+    remaining.classList.toggle("over-budget", overBudget);
     const saved = amount === undefined ? "" : String(amount);
     if (form.dataset.amount !== saved) {
       form.querySelector("input").value = saved;
