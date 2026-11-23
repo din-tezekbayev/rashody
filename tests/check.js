@@ -134,12 +134,21 @@
   byId("reset-period").click();
 
   const budgetForm = () => byId("budget-list").firstElementChild;
-  function limit(value, form = budgetForm()) {
-    form.querySelector("input").value = value;
-    form.requestSubmit();
+  function editLimit(row = budgetForm()) {
+    row.querySelector("button").focus();
+    row.querySelector("button").click();
+  }
+  function limit(value, row = budgetForm()) {
+    if (!byId("budget-dialog").open || byId("budget-form").dataset.category !== row.dataset.category) editLimit(row);
+    byId("budget-limit").value = value;
+    byId("budget-form").requestSubmit();
+  }
+  function removeLimit(row = budgetForm()) {
+    editLimit(row);
+    byId("remove-budget").click();
   }
   check(byId("budget-list").children.length === data.categories.length &&
-    budgetForm().querySelector(".budget-saved").textContent === "Лимит: Не задан", "Все категории показаны без лимитов");
+    budgetForm().querySelector(".budget-ratio").textContent.endsWith(" / Лимит не задан"), "Все категории показаны без лимитов");
   limit("20 000");
   check(data.budgets[0].amount === 20000 && budgetForm().textContent.includes("20 000 ₸"), "Сохранение лимита с пробелами");
   limit("25 000");
@@ -147,28 +156,28 @@
   check(data.budgets.length === 1 && data.budgets[0].amount === 25000, "Изменение заменяет лимит без дубликата");
   for (const value of ["", "0", "-1", "12,5", "12.50", "abc", "NaN", "Infinity", "1e3", "9007199254740992"]) {
     limit(value);
-    check(localStorage.getItem("rashody") === savedBudget && budgetForm().querySelector("input").value === value &&
-      !budgetForm().querySelector(".error").hidden, `Неверный лимит не сохраняется: ${value}`);
+    check(localStorage.getItem("rashody") === savedBudget && byId("budget-limit").value === value &&
+      !byId("budget-limit-error").hidden && byId("budget-dialog").open, `Неверный лимит не сохраняется: ${value}`);
   }
   render();
-  check(budgetForm().querySelector("input").value === "9007199254740992", "Перерисовка не стирает несохранённый ввод лимита");
+  check(byId("budget-limit").value === "9007199254740992", "Перерисовка не стирает несохранённый ввод лимита");
   try {
     Storage.prototype.setItem = () => { throw new Error("Storage unavailable"); };
     limit("30 000");
-    check(data.budgets[0].amount === 25000 && budgetForm().querySelector("input").value === "30 000" &&
-      !byId("storage-error").hidden, "Отказ записи лимита сохраняет старое значение и введённое");
-    budgetForm().querySelector('button[type="button"]').click();
+    check(data.budgets[0].amount === 25000 && byId("budget-limit").value === "30 000" &&
+      !byId("storage-error").hidden && byId("budget-dialog").open && !byId("budget-limit-error").hidden, "Отказ записи лимита сохраняет старое значение и введённое");
+    removeLimit();
     check(data.budgets[0].amount === 25000, "Отказ удаления лимита не меняет данные");
   } finally {
     Storage.prototype.setItem = originalSet;
   }
   check(localStorage.getItem("rashody") === savedBudget, "Ошибка бюджета не меняет сохранённые траты и лимиты");
-  budgetForm().querySelector('button[type="button"]').click();
-  check(data.budgets.length === 0 && budgetForm().querySelector("input").value === "" &&
-    budgetForm().textContent.includes("Не задан") && data.expenses.length === 10, "Удаление лимита сохраняет траты");
+  removeLimit();
+  check(data.budgets.length === 0 && !byId("budget-dialog").open &&
+    budgetForm().textContent.toLowerCase().includes("не задан") && data.expenses.length === 10, "Удаление лимита сохраняет траты");
   limit(String(Number.MAX_SAFE_INTEGER));
   limit("1", byId("budget-list").children[1]);
-  check(data.budgets.length === 1 && !byId("budget-list").children[1].querySelector(".error").hidden, "Переполнение суммы лимитов отклоняется");
+  check(data.budgets.length === 1 && !byId("budget-limit-error").hidden, "Переполнение суммы лимитов отклоняется");
   limit("20 000");
   load();
   render();
@@ -178,17 +187,18 @@
   limit("25 000");
   check(data.budgets.some((budget) => budget.month === otherMonth && budget.amount === 9000), "Изменение лимита сохраняет бюджет другого месяца");
   const currentMonth = localDate().slice(0, 7);
-  budgetForm().dataset.month = otherMonth;
+  editLimit();
+  byId("budget-form").dataset.month = otherMonth;
   byId("budget-list").dataset.month = otherMonth;
   limit("1");
   check(!data.budgets.some((budget) => budget.month === currentMonth && budget.amount === 1) &&
-    byId("budget-status").textContent.includes("новый месяц"), "Старая форма не записывает лимит в другой месяц");
+    byId("budget-limit-error").textContent.includes("новый месяц"), "Старая форма не записывает лимит в другой месяц");
   byId("budget-list").dataset.month = "";
   renderBudgets();
   byId("new-category").value = "<b>Бюджет</b>";
   byId("save-category").click();
   check(byId("budget-list").lastElementChild.textContent.includes("<b>Бюджет</b>") &&
-    byId("budget-list").lastElementChild.textContent.includes("Не задан") && !byId("budget-list").querySelector("b"), "Новая категория без лимита, HTML показан текстом");
+    byId("budget-list").lastElementChild.textContent.toLowerCase().includes("не задан") && !byId("budget-list").querySelector("b"), "Новая категория без лимита, HTML показан текстом");
   const originalDate = Date;
   const nextMonth = new Date();
   nextMonth.setMonth(nextMonth.getMonth() + 1, 1);
@@ -197,7 +207,7 @@
       constructor(...args) { super(...(args.length ? args : [nextMonth.getTime()])); }
     };
     document.dispatchEvent(new Event("visibilitychange"));
-    check(budgetForm().textContent.includes("Не задан") && byId("budget-month").textContent ===
+    check(budgetForm().textContent.toLowerCase().includes("не задан") && byId("budget-month").textContent ===
       nextMonth.toLocaleDateString("ru-RU", { month: "long", year: "numeric" }), "Новый месяц показан без переноса лимитов");
     check(byId("budget-total").textContent === "Общий бюджет: Не задан" && byId("budget-spent").textContent === "Потрачено: 0 ₸" &&
       byId("budget-remaining").textContent === "Осталось: —", "Общие суммы нового месяца не включают старые лимиты и траты");
@@ -211,7 +221,7 @@
   check(budgetForm().textContent.includes("25 000 ₸"), "После возврата месяца показан его прежний лимит");
 
   reset();
-  const spentText = () => budgetForm().querySelector(".budget-spent").textContent;
+  const spentText = () => `Потрачено: ${budgetForm().querySelector(".budget-ratio").textContent.split(" / ")[0]}`;
   const remainingText = () => budgetForm().querySelector(".budget-remaining").textContent;
   const overBudget = () => budgetForm().querySelector(".budget-remaining").classList.contains("over-budget");
   check(spentText() === "Потрачено: 0 ₸" && remainingText() === "Осталось: —" && !overBudget(), "Без лимита видны нулевые расходы и прочерк остатка");
@@ -223,13 +233,15 @@
   add("12 500");
   check(spentText() === "Потрачено: 20 000 ₸" && remainingText() === "Осталось: 0 ₸" && !overBudget(), "Точное достижение лимита без предупреждения");
   add("1 000");
+  check(budgetForm().querySelector(".budget-meter").getAttribute("aria-valuenow") === "100" &&
+    budgetForm().querySelector(".budget-meter").classList.contains("over-budget"), "Перерасход ограничен полной красной полосой");
   check(spentText() === "Потрачено: 21 000 ₸" && remainingText() === "Перерасход: 1 000 ₸" && overBudget(), "Перерасход показан текстом и цветом");
   add("12,50", "USD");
   add("100", "KZT", localDate(previousMonth));
   add("100", "KZT", `${new Date().getFullYear() - 1}${localDate().slice(4)}`);
   add("300", "KZT", localDate(), "Транспорт");
   check(spentText() === "Потрачено: 21 000 ₸" && remainingText() === "Перерасход: 1 000 ₸", "Другая валюта, месяц, год и категория не меняют расчёт категории");
-  check(byId("budget-list").children[1].querySelector(".budget-spent").textContent === "Потрачено: 300 ₸" &&
+  check(byId("budget-list").children[1].querySelector(".budget-ratio").textContent.startsWith("300 ₸ /") &&
     byId("budget-list").children[1].querySelector(".budget-remaining").textContent === "Осталось: —", "Расходы категории без лимита тоже видны");
   byId("period-from").value = "1900-01-01";
   byId("period-to").value = "1900-01-02";
@@ -238,8 +250,10 @@
   byId("reset-period").click();
   limit("30 000");
   check(remainingText() === "Осталось: 9 000 ₸" && !overBudget(), "Увеличение лимита убирает предупреждение");
-  budgetForm().querySelector('button[type="button"]').click();
+  removeLimit();
   check(spentText() === "Потрачено: 21 000 ₸" && remainingText() === "Осталось: —" && !overBudget(), "Удаление лимита сохраняет расходы и убирает остаток");
+  check(budgetForm().querySelector(".budget-meter").getAttribute("aria-valuenow") === "0" &&
+    budgetForm().querySelector(".budget-meter").classList.contains("no-limit"), "После удаления лимита полоса пустая и нейтральная");
   reset();
   limit("1");
   add(String(Number.MAX_SAFE_INTEGER));
@@ -270,7 +284,7 @@
   byId("new-category").value = "Здоровье";
   byId("save-category").click();
   check(!byId("budget-missing").hidden && byId("budget-total").textContent === "Общий бюджет: 60 000 ₸", "Новая категория сразу показывает пояснение о незаданном лимите");
-  for (const index of [1, 2]) byId("budget-list").children[index].querySelector('button[type="button"]').click();
+  for (const index of [1, 2]) removeLimit(byId("budget-list").children[index]);
   check(byId("budget-total").textContent === "Общий бюджет: 20 000 ₸" && byId("budget-spent").textContent === "Потрачено: 19 500 ₸" &&
     byId("budget-remaining").textContent === "Осталось: 500 ₸" && !byId("budget-missing").hidden, "Частичный бюджет учитывает расходы категорий без лимита");
   add("1 000", "KZT", localDate(), "Дом");
@@ -279,22 +293,54 @@
   check(byId("budget-remaining").textContent === "Осталось: 0 ₸" && !byId("budget-remaining").classList.contains("over-budget"), "При равенстве общего бюджета и расходов предупреждения нет");
   limit("30 000");
   check(byId("budget-remaining").textContent === "Осталось: 9 500 ₸", "Изменение лимита пересчитывает общий остаток");
-  budgetForm().querySelector('button[type="button"]').click();
+  removeLimit();
   check(byId("budget-total").textContent === "Общий бюджет: Не задан" && byId("budget-spent").textContent === "Потрачено: 20 500 ₸" &&
     byId("budget-remaining").textContent === "Осталось: —" && !byId("budget-remaining").classList.contains("over-budget"), "Удаление последнего лимита сохраняет расходы и убирает общий перерасход");
 
+  reset();
+  byId("new-category").value = "Здоровье";
+  byId("save-category").click();
+  const fourth = byId("budget-list").children[3];
+  check(fourth.hidden && byId("budget-more").textContent === "Ещё 1", "Четвёртая категория скрыта за Ещё 1");
+  byId("budget-more").click();
+  check(!fourth.hidden && byId("budget-more").getAttribute("aria-expanded") === "true", "Ещё раскрывает категории");
+  limit("100", fourth);
+  add("200", "KZT", localDate(), "Здоровье");
+  check(fourth.style.getPropertyValue("--category-color") === rows()[0].style.getPropertyValue("--category-color") &&
+    fourth.style.getPropertyValue("--category-color") === "#8430CE", "Одинаковый постоянный цвет бюджета и траты");
+  byId("budget-more").click();
+  check(fourth.hidden && byId("budget-more").textContent === "Ещё 1 · есть перерасход", "Скрытый перерасход отмечен на кнопке");
+  byId("budget-more").click();
+  editLimit(fourth);
+  const dialog = byId("budget-dialog");
+  const closeButton = dialog.querySelector("[data-close]");
+  byId("remove-budget").focus();
+  byId("remove-budget").dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true }));
+  check(document.activeElement === closeButton, "Tab замыкает обход внутри окна");
+  closeButton.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true, cancelable: true }));
+  check(document.activeElement === byId("remove-budget"), "Shift+Tab замыкает обратный обход");
+  byId("amount").focus();
+  check(dialog.contains(document.activeElement), "Модальное окно блокирует фокус на фоне");
+  byId("budget-limit").value = "999";
+  closeButton.click();
+  check(data.budgets[0].amount === 100 && !byId("budget-dialog").open, "Закрытие окна не сохраняет ввод");
+  editLimit(fourth);
+  dialog.dispatchEvent(new PointerEvent("pointerdown", { clientX: -1, clientY: -1 }));
+  dialog.dispatchEvent(new MouseEvent("click", { clientX: -1, clientY: -1 }));
+  check(!dialog.open && data.budgets[0].amount === 100, "Нажатие фона закрывает окно без сохранения");
+  reset();
   const legacy = JSON.stringify({ categories: [...initialCategories], expenses: [{ amount: 5000, category: "Еда", date: localDate(), comment: "Старая запись" }] });
   localStorage.setItem("rashody", legacy);
   load();
   render();
   check(byId("month-total").textContent === "5 000 ₸" && byId("month-total-usd").textContent === "0,00 $" &&
-    localStorage.getItem("rashody") === legacy && data.budgets.length === 0 && budgetForm().textContent.includes("Не задан"),
+    localStorage.getItem("rashody") === legacy && data.budgets.length === 0 && budgetForm().textContent.toLowerCase().includes("не задан"),
     "Старые записи читаются как тенге без перезаписи, бюджеты не заданы");
   const originalGet = Storage.prototype.getItem;
   try {
     Storage.prototype.getItem = () => { throw new Error("Storage unavailable"); };
     load();
-    check(!byId("storage-error").hidden && byId("amount").disabled && budgetForm().querySelector("input").disabled,
+    check(!byId("storage-error").hidden && byId("amount").disabled && byId("budget-limit").disabled,
       "Отказ чтения блокирует изменения трат и бюджетов");
     limit("100");
   } finally {
@@ -310,7 +356,7 @@
     localStorage.setItem("rashody", corrupt);
     load();
     limit("100");
-    check(!byId("storage-error").hidden && budgetForm().querySelector("input").disabled &&
+    check(!byId("storage-error").hidden && byId("budget-limit").disabled &&
       localStorage.getItem("rashody") === corrupt, "Повреждённый бюджет блокирует запись и не затирается");
   }
   localStorage.setItem("rashody", "{");

@@ -6,6 +6,115 @@ const byId = (id) => document.getElementById(id);
 const expenseForm = byId("expense-form");
 let data = { categories: [...initialCategories], expenses: [], budgets: [] };
 let storageReadable = true;
+let budgetsExpanded = false;
+const categoryColors = [
+  ["#1967D2", "#E8F0FE"], ["#137333", "#E6F4EA"], ["#A85B00", "#FEF7E0"],
+  ["#8430CE", "#F3E8FD"], ["#00757D", "#E0F2F1"]
+];
+
+function categoryIcon(category, container) {
+  const index = data.categories.indexOf(category);
+  const [color, tint] = categoryColors[index % categoryColors.length];
+  container.style.setProperty("--category-color", color);
+  container.style.setProperty("--category-tint", tint);
+  const icon = document.createElement("span");
+  icon.className = "category-icon";
+  icon.setAttribute("aria-hidden", "true");
+  const paths = [
+    '<path d="M5 3v6a3 3 0 0 0 6 0V3M8 3v18M19 21V3c-4 3-4 9 0 9"/>',
+    '<rect x="4" y="4" width="16" height="14" rx="3"/><path d="M4 11h16M7 21v-3M17 21v-3M8 15h.01M16 15h.01"/>',
+    '<path d="m3 11 9-8 9 8M5 10v11h14V10M9 21v-7h6v7"/>'
+  ];
+  icon.innerHTML = `<svg viewBox="0 0 24 24">${paths[index] || '<path d="M3 3h8l10 10-8 8L3 11z"/><circle cx="7" cy="7" r="1"/>'}</svg>`;
+  return icon;
+}
+
+function setupDialog(dialog) {
+  let opener;
+  let scrollY = 0;
+  dialog.addEventListener("close", () => {
+    if (dialog.open) return;
+    document.body.style.position = "";
+    document.body.style.top = "";
+    document.body.style.width = "";
+    window.scrollTo(0, scrollY);
+    if (opener?.isConnected) opener.focus({ preventScroll: true });
+  });
+  dialog.querySelector("[data-close]").addEventListener("click", () => dialog.close());
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key !== "Tab") return;
+    const fields = [...dialog.querySelectorAll("button, input, select, textarea, [tabindex]")]
+      .filter((field) => !field.disabled && field.tabIndex >= 0 && field.getClientRects().length);
+    const first = fields[0];
+    const last = fields.at(-1);
+    if (event.shiftKey && document.activeElement === first || !event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      (event.shiftKey ? last : first)?.focus();
+    }
+  });
+  let startedOnBackdrop = false;
+  const outside = (event) => {
+    const rect = dialog.getBoundingClientRect();
+    return event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom;
+  };
+  dialog.addEventListener("pointerdown", (event) => { startedOnBackdrop = event.target === dialog && outside(event); });
+  dialog.addEventListener("click", (event) => {
+    if (startedOnBackdrop && event.target === dialog && outside(event)) dialog.close();
+    startedOnBackdrop = false;
+  });
+  const header = dialog.querySelector(".modal-header");
+  let swipe;
+  header.addEventListener("pointerdown", (event) => {
+    if (!matchMedia("(max-width: 600px)").matches || event.target.closest("button") || !event.isPrimary) return;
+    swipe = { x: event.clientX, y: event.clientY, id: event.pointerId };
+    header.setPointerCapture(event.pointerId);
+  });
+  header.addEventListener("pointermove", (event) => {
+    if (!swipe || event.pointerId !== swipe.id) return;
+    const dy = event.clientY - swipe.y;
+    const dx = event.clientX - swipe.x;
+    if (dy > 0 && dy > Math.abs(dx)) {
+      dialog.classList.add("swiping");
+      dialog.style.transform = `translateY(${dy}px)`;
+    }
+  });
+  function endSwipe(event) {
+    if (!swipe || event.pointerId !== swipe.id) return;
+    const dy = event.clientY - swipe.y;
+    const dismiss = event.type === "pointerup" && dy >= 60 && dy > Math.abs(event.clientX - swipe.x);
+    swipe = null;
+    dialog.classList.remove("swiping");
+    dialog.style.transform = "";
+    if (dismiss) dialog.close();
+  }
+  header.addEventListener("pointerup", endSwipe);
+  header.addEventListener("pointercancel", endSwipe);
+  return () => {
+    if (dialog.open) return;
+    opener = document.activeElement;
+    scrollY = window.scrollY;
+    dialog.showModal();
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
+  };
+}
+const showBudgetDialog = setupDialog(byId("budget-dialog"));
+
+function openBudget(category) {
+  const form = byId("budget-form");
+  form.dataset.category = category;
+  form.dataset.month = localDate().slice(0, 7);
+  const amount = data.budgets.find((budget) => budget.month === form.dataset.month && budget.category === category)?.amount;
+  byId("budget-dialog-title").textContent = category;
+  byId("budget-current").textContent = `Текущий лимит: ${amount === undefined ? "Не задан" : money(amount, "KZT")}`;
+  byId("budget-limit").value = amount === undefined ? "" : String(amount);
+  fieldError("budget-limit", "");
+  form.querySelectorAll("input, button").forEach((field) => { field.disabled = !storageReadable; });
+  byId("remove-budget").disabled = !storageReadable || amount === undefined;
+  showBudgetDialog();
+  byId("budget-limit").focus();
+}
 
 function localDate(date = new Date()) {
   return `${String(date.getFullYear()).padStart(4, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -101,7 +210,7 @@ function load() {
     storageReadable = false;
     byId("storage-error").textContent = "Не удалось прочитать сохранённые данные. Они не изменены. Изменения недоступны: проверьте разрешение браузера на хранение данных или восстановите сохранённые записи.";
     byId("storage-error").hidden = false;
-    document.querySelectorAll("#expense-form input, #expense-form select, #expense-form textarea, #expense-form button, #budget-list input, #budget-list button")
+    document.querySelectorAll("#expense-form input, #expense-form select, #expense-form textarea, #expense-form button, #budget-list button, #budget-form input, #budget-form button")
       .forEach((field) => { field.disabled = true; });
   }
 }
@@ -109,8 +218,9 @@ function load() {
 function updateBudget(form, remove = false) {
   byId("budget-status").textContent = "";
   if (form.dataset.month !== localDate().slice(0, 7)) {
+    openBudget(form.dataset.category);
     renderBudgets();
-    byId("budget-status").textContent = "Начался новый месяц. Задайте лимит заново.";
+    fieldError("budget-limit", "Начался новый месяц. Задайте лимит заново.");
     return;
   }
   const input = form.querySelector("input");
@@ -125,16 +235,18 @@ function updateBudget(form, remove = false) {
     return;
   }
   if (!remove) budgets.push({ month: form.dataset.month, category: form.dataset.category, amount });
-  if (!save({ ...data, budgets })) return;
-  input.value = remove ? "" : String(amount);
+  if (!save({ ...data, budgets })) {
+    fieldError(input.id, byId("storage-error").textContent);
+    input.focus();
+    return;
+  }
   renderBudgets();
   byId("budget-status").textContent = remove ? "Лимит убран" : "Лимит сохранён";
-  input.focus();
+  byId("budget-dialog").close();
 }
 
 function renderBudgetSummary(container, amount, spent) {
   const overBudget = amount !== undefined && spent > amount;
-  container.querySelector(".budget-spent").textContent = `Потрачено: ${money(spent, "KZT")}`;
   const remaining = container.querySelector(".budget-remaining");
   remaining.textContent = amount === undefined ? "Осталось: —" : overBudget
     ? `Перерасход: ${money(spent - amount, "KZT")}` : `Осталось: ${money(amount - spent, "KZT")}`;
@@ -151,46 +263,61 @@ function renderBudgets() {
   renderBudgetSummary(byId("budget-overview"), totalLimit, expenses.reduce((sum, expense) => sum + expense.amount, 0));
   byId("budget-missing").hidden = budgets.length === data.categories.length;
   byId("budget-month").textContent = new Date().toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
-  if (list.dataset.month !== month || [...list.children].some((form, index) => form.dataset.category !== data.categories[index])) {
+  if (list.dataset.month !== month || [...list.children].some((row, index) => row.dataset.category !== data.categories[index])) {
     list.replaceChildren();
     list.dataset.month = month;
     byId("budget-status").textContent = "";
   }
+  let hiddenOverspend = false;
   data.categories.forEach((category, index) => {
-    let form = list.children[index];
-    if (!form) {
-      form = byId("budget-row").content.firstElementChild.cloneNode(true);
-      form.dataset.month = month;
-      form.dataset.category = category;
-      form.querySelector("h3").id = `budget-category-${index}`;
-      form.querySelector("h3").textContent = category;
-      form.setAttribute("aria-labelledby", `budget-category-${index}`);
-      const id = `budget-limit-${index}`;
-      form.querySelector("label").htmlFor = id;
-      form.querySelector("input").id = id;
-      form.querySelector("input").setAttribute("aria-describedby", `${id}-error`);
-      form.querySelector(".error").id = `${id}-error`;
-      form.addEventListener("submit", (event) => {
-        event.preventDefault();
-        updateBudget(form);
-      });
-      form.querySelector('button[type="button"]').addEventListener("click", () => updateBudget(form, true));
-      list.append(form);
+    let row = list.children[index];
+    if (!row) {
+      row = byId("budget-row").content.firstElementChild.cloneNode(true);
+      row.dataset.category = category;
+      row.querySelector("h3").textContent = category;
+      row.querySelector(".category-icon").replaceWith(categoryIcon(category, row));
+      const edit = row.querySelector("button");
+      edit.setAttribute("aria-label", `Изменить лимит: ${category}`);
+      edit.addEventListener("click", () => openBudget(category));
+      list.append(row);
     }
     const amount = budgets.find((budget) => budget.category === category)?.amount;
     const spent = expenses.filter((expense) => expense.category === category)
       .reduce((sum, expense) => sum + expense.amount, 0);
-    renderBudgetSummary(form, amount, spent);
-    const saved = amount === undefined ? "" : String(amount);
-    if (form.dataset.amount !== saved) {
-      form.querySelector("input").value = saved;
-      form.dataset.amount = saved;
-      form.querySelector(".budget-saved").textContent = `Лимит: ${amount === undefined ? "Не задан" : money(amount, "KZT")}`;
-    }
-    form.querySelectorAll("input, button").forEach((field) => { field.disabled = !storageReadable; });
-    form.querySelector('button[type="button"]').disabled = !storageReadable || amount === undefined;
+    const overBudget = amount !== undefined && spent > amount;
+    renderBudgetSummary(row, amount, spent);
+    row.querySelector(".budget-ratio").textContent = `${money(spent, "KZT")} / ${amount === undefined ? "Лимит не задан" : money(amount, "KZT")}`;
+    const meter = row.querySelector(".budget-meter");
+    const percentage = amount === undefined ? 0 : Math.min(100, spent / amount * 100);
+    meter.style.setProperty("--progress", `${percentage}%`);
+    meter.setAttribute("aria-valuenow", String(percentage));
+    meter.setAttribute("aria-label", `Бюджет: ${category}`);
+    meter.setAttribute("aria-valuetext", `${money(spent, "KZT")}${amount === undefined ? "; лимит не задан" : ` из ${money(amount, "KZT")}`}${overBudget ? "; перерасход" : ""}`);
+    meter.classList.toggle("over-budget", overBudget);
+    meter.classList.toggle("no-limit", amount === undefined);
+    row.hidden = !budgetsExpanded && index >= 3;
+    if (index >= 3 && overBudget) hiddenOverspend = true;
+    row.querySelector("button").disabled = !storageReadable;
   });
+  const more = byId("budget-more");
+  more.hidden = data.categories.length <= 3;
+  more.setAttribute("aria-expanded", String(budgetsExpanded));
+  more.textContent = budgetsExpanded ? "Свернуть" : `Ещё ${data.categories.length - 3}${hiddenOverspend ? " · есть перерасход" : ""}`;
+  if (byId("budget-dialog").open && byId("budget-form").dataset.month !== month) {
+    openBudget(byId("budget-form").dataset.category);
+    fieldError("budget-limit", "Начался новый месяц. Задайте лимит заново.");
+  }
 }
+
+byId("budget-more").addEventListener("click", () => {
+  budgetsExpanded = !budgetsExpanded;
+  renderBudgets();
+});
+byId("budget-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  updateBudget(event.currentTarget);
+});
+byId("remove-budget").addEventListener("click", () => updateBudget(byId("budget-form"), true));
 
 function renderCategories(selected = byId("category").value) {
   byId("category").replaceChildren(...data.categories.map((name) => new Option(name, name)));
@@ -199,7 +326,6 @@ function renderCategories(selected = byId("category").value) {
 
 function render() {
   const today = localDate();
-  byId("month-label").textContent = new Date().toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
   renderTotals("month", data.expenses.filter((expense) => expense.date.slice(0, 7) === today.slice(0, 7)));
   renderBudgets();
 
@@ -234,12 +360,15 @@ function render() {
     date.className = "expense-date";
     date.dateTime = expense.date;
     date.textContent = expense.date.split("-").reverse().join(".");
-    item.append(category, amount, date);
+    const details = document.createElement("div");
+    details.className = "expense-details";
+    details.append(category, date);
+    item.append(categoryIcon(expense.category, item), details, amount);
     if (expense.comment) {
       const comment = document.createElement("p");
       comment.className = "expense-comment";
       comment.textContent = expense.comment;
-      item.append(comment);
+      details.append(comment);
     }
     return item;
   }));
