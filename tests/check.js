@@ -506,6 +506,114 @@
   check(byId("month-total").textContent === "5 000 ₸" && byId("month-total-usd").textContent === "0,00 $" &&
     localStorage.getItem("rashody") === legacy && data.budgets.length === 0 && budgetForm().textContent.toLowerCase().includes("не задан"),
     "Старые записи читаются как тенге без перезаписи, бюджеты не заданы");
+  const styledBase = {
+    ...JSON.parse(persistenceFixture),
+    budgets: [
+      { month: currentMonth, category: "Еда", amount: 20000 },
+      { month: currentMonth, category: "Транспорт", amount: 10000 },
+      { month: currentMonth, category: "Дом", amount: 30000 }
+    ],
+    futureMetadata: { preserved: true }
+  };
+  const styledFixture = JSON.stringify({ ...styledBase, categoryStyles: [
+    { category: "Еда", color: "#ffffff", icon: "home" },
+    { category: "Транспорт", color: "#B3261E", icon: "transport" },
+    { category: "Здоровье", color: "#000000", icon: "tag" }
+  ] });
+  localStorage.setItem("rashody", styledFixture);
+  let readWrites = 0;
+  try {
+    Storage.prototype.setItem = (...args) => { readWrites++; return originalSet.apply(localStorage, args); };
+    load();
+    renderCategories();
+    render();
+    check(readWrites === 0 && localStorage.getItem("rashody") === styledFixture, "Чтение оформления не переписывает исходные данные и регистр HEX");
+  } finally {
+    Storage.prototype.setItem = originalSet;
+  }
+  check(byId("month-total").textContent === "19 500 ₸" && byId("month-total-usd").textContent === "12,60 $" &&
+    byId("budget-total").textContent === "Общий бюджет: 60 000 ₸" && byId("budget-remaining").textContent === "Осталось: 40 500 ₸" &&
+    JSON.stringify(data.categories) === JSON.stringify(styledBase.categories) &&
+    JSON.stringify(data.expenses) === JSON.stringify(styledBase.expenses), "Оформление не меняет имена, траты, валюты и бюджеты");
+  const white = categoryAppearance("Еда");
+  check(white.color === "#FFFFFF" && white.icon === "home" && white["icon-color"] === "#000000" &&
+    white.label === "#202124" && white["progress-color"] !== "#FFFFFF", "Белый цвет сохраняется исходным, иконка и полоса остаются читаемыми");
+  check(Math.abs(contrastRatio("#000000", "#FFFFFF") - 21) < .00001 &&
+    Math.abs(contrastRatio("#777777", "#FFFFFF") - 4.4781) < .001 && contrastRatio("#1967D2", "#1967D2") === 1,
+    "Расчёт контраста совпадает с известными контрольными значениями");
+  const foodExpense = rows().find((row) => row.querySelector(".expense-category").textContent === "Еда");
+  const foodIcon = budgetForm().querySelector(".category-icon");
+  check(budgetForm().style.getPropertyValue("--category-color") === "#FFFFFF" &&
+    foodExpense.style.getPropertyValue("--category-color") === "#FFFFFF" && chip("Еда").style.getPropertyValue("--category-color") === "#FFFFFF" &&
+    byId("entry-categories").querySelector('[data-category="Еда"]').style.getPropertyValue("--category-color") === "#FFFFFF" &&
+    getComputedStyle(foodIcon).color === "rgb(0, 0, 0)" && getComputedStyle(foodIcon).backgroundColor === "rgb(255, 255, 255)",
+    "Бюджет, записи и оба выбора категории используют единое оформление");
+  chip("Транспорт").click();
+  check(categoryAppearance("Еда").color === "#FFFFFF" && budgetForm().style.getPropertyValue("--category-color") === "#FFFFFF" &&
+    !byId("budget-list").children[1].querySelector(".budget-meter").classList.contains("over-budget"),
+    "Фильтрация не перекрашивает категории, красный цвет не означает перерасход");
+  chip().click();
+  for (const color of ["#FFFFFF", "#000000", "#FFFFCC", "#B3261E", "#1967D2", "#137333", "#A85B00", "#8430CE", "#00757D"]) {
+    data.categoryStyles = [{ category: "Еда", color, icon: "tag" }];
+    const appearance = categoryAppearance("Еда");
+    check(appearance.color === color && contrastRatio(appearance["icon-color"], color) >= 4.5 &&
+      contrastRatio(appearance.label, appearance.tint) >= 4.5 && contrastRatio(appearance["progress-color"], appearance.track) >= 3,
+      `Контраст значка, текста и полосы для ${color}`);
+  }
+  load();
+  const newStyles = [{ category: "Еда", color: "#00757D", icon: "food" }];
+  const oldData = data;
+  try {
+    Storage.prototype.setItem = () => { throw new Error("Storage unavailable"); };
+    check(!save({ ...data, categoryStyles: newStyles }) && data === oldData &&
+      localStorage.getItem("rashody") === styledFixture, "Отказ сохранения оформления не меняет память или сохранённые данные");
+  } finally {
+    Storage.prototype.setItem = originalSet;
+  }
+  check(save({ ...data, categoryStyles: newStyles }), "Явное сохранение оформления использует общую атомарную запись");
+  render();
+  check(budgetForm().style.getPropertyValue("--category-color") === "#00757D" &&
+    chip("Еда").style.getPropertyValue("--category-color") === "#00757D", "Уже показанные строки и чипы обновляют изменённое оформление");
+  add("100");
+  check(JSON.stringify(data.categoryStyles) === JSON.stringify(newStyles) && data.futureMetadata.preserved &&
+    JSON.stringify(JSON.parse(localStorage.getItem("rashody")).categoryStyles) === JSON.stringify(newStyles),
+    "Сохранение траты сохраняет оформление и неизвестные метаданные");
+  load();
+  renderCategories();
+  render();
+  check(categoryAppearance("Еда").color === "#00757D" && categoryAppearance("Еда").icon === "food" &&
+    byId("month-total").textContent === "19 600 ₸", "Сохранённое оформление повторно читается вместе с новыми тратами");
+  for (const categoryStyles of [null, {}, [null], [{}], [{ category: "Нет такой", color: "#FFFFFF", icon: "home" }],
+    [{ category: "Еда", color: "url(https://invalid.example)", icon: "<svg onload=alert(1)>" }],
+    [{ category: "Еда", color: { toString: null }, icon: "constructor" }],
+    [{ category: "Еда", color: "#fff", icon: "__proto__" }],
+    [{ category: "Еда", color: "#12345678", icon: "home" }],
+    [{ category: "Еда", color: "#FFFFFF", icon: "tag" }, { category: "Еда", color: "#000000", icon: "home" }]]) {
+    const raw = JSON.stringify({ ...styledBase, categoryStyles });
+    localStorage.setItem("rashody", raw);
+    load();
+    renderCategories();
+    render();
+    check(storageReadable && !byId("open-expense").disabled && categoryAppearance("Еда").color === "#1967D2" &&
+      localStorage.getItem("rashody") === raw && !byId("expense-list").querySelector("[onload]"),
+      "Неверные декоративные данные безопасны, не блокируют траты и не переписываются при чтении");
+  }
+  for (const icon of ["constructor", "__proto__", "<svg>", "not-an-icon", null]) {
+    data.categoryStyles = [{ category: "Еда", color: "#FFFFFF", icon }];
+    check(categoryAppearance("Еда").icon === "tag" && categoryAppearance("Еда").color === "#FFFFFF", "Неизвестная иконка заменяется меткой без потери валидного цвета");
+  }
+  load();
+  add("1");
+  check(data.expenses.length === styledBase.expenses.length + 1 && byId("month-total").textContent === "19 501 ₸",
+    "Неподдерживаемое оформление не мешает сохранять новые траты");
+  localStorage.setItem("rashody", legacy);
+  load();
+  renderCategories();
+  render();
+  check(categoryAppearance("Еда").color === "#1967D2" && categoryAppearance("Еда").icon === "food" &&
+    categoryAppearance("Транспорт").color === "#137333" && categoryAppearance("Дом").color === "#A85B00" &&
+    !Object.hasOwn(data, "categoryStyles") && localStorage.getItem("rashody") === legacy,
+    "Без настроек прежние цвета и иконки сохраняются, поле оформления не добавляется автоматически");
   const originalGet = Storage.prototype.getItem;
   try {
     Storage.prototype.getItem = () => { throw new Error("Storage unavailable"); };

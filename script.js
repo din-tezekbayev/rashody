@@ -15,20 +15,69 @@ const categoryColors = [
   ["#8430CE", "#F3E8FD"], ["#00757D", "#E0F2F1"]
 ];
 
-function categoryIcon(category, container) {
+const categoryIcons = {
+  food: '<path d="M5 3v6a3 3 0 0 0 6 0V3M8 3v18M19 21V3c-4 3-4 9 0 9"/>',
+  transport: '<rect x="4" y="4" width="16" height="14" rx="3"/><path d="M4 11h16M7 21v-3M17 21v-3M8 15h.01M16 15h.01"/>',
+  home: '<path d="m3 11 9-8 9 8M5 10v11h14V10M9 21v-7h6v7"/>',
+  tag: '<path d="M3 3h8l10 10-8 8L3 11z"/><circle cx="7" cy="7" r="1"/>'
+};
+
+function colorRgb(color) {
+  return color.slice(1).match(/../g).map((channel) => parseInt(channel, 16));
+}
+
+function contrastRatio(first, second) {
+  const luminance = (color) => colorRgb(color).map((channel) => {
+    const value = channel / 255;
+    return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
+  }).reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
+  const [low, high] = [luminance(first), luminance(second)].sort((a, b) => a - b);
+  return (high + .05) / (low + .05);
+}
+
+function categoryAppearance(category) {
   const index = data.categories.indexOf(category);
-  const [color, tint] = categoryColors[index % categoryColors.length];
-  container.style.setProperty("--category-color", color);
-  container.style.setProperty("--category-tint", tint);
+  const [color, tint] = categoryColors[index % categoryColors.length] || categoryColors[0];
+  const legacy = {
+    color, tint, label: color, border: color,
+    "icon-color": color, "icon-background": tint, "icon-border": "transparent",
+    "progress-color": color, track: tint,
+    icon: ["food", "transport", "home"][index] || "tag"
+  };
+  const matches = Array.isArray(data.categoryStyles)
+    ? data.categoryStyles.filter((style) => style && style.category === category) : [];
+  if (matches.length !== 1) return legacy;
+  const style = matches[0];
+  const icon = typeof style.icon === "string" && Object.hasOwn(categoryIcons, style.icon) ? style.icon : "tag";
+  if (typeof style.color !== "string" || !/^#[0-9a-f]{6}$/i.test(style.color)) return { ...legacy, icon };
+  const chosen = style.color.toUpperCase();
+  const toHex = (channels) => "#" + channels.map((channel) => channel.toString(16).padStart(2, "0")).join("").toUpperCase();
+  let progress = chosen;
+  while (contrastRatio(progress, "#E5E6E8") < 3) {
+    progress = toHex(colorRgb(progress).map((channel) => Math.floor(channel * .9)));
+  }
+  return {
+    color: chosen,
+    tint: toHex(colorRgb(chosen).map((channel) => Math.round(.15 * channel + .85 * 255))),
+    label: "#202124", border: "#5F6368", icon,
+    "icon-color": contrastRatio(chosen, "#000000") >= contrastRatio(chosen, "#FFFFFF") ? "#000000" : "#FFFFFF",
+    "icon-background": chosen, "icon-border": "#5F6368",
+    "progress-color": progress, track: "#E5E6E8"
+  };
+}
+
+function applyCategoryAppearance(category, container) {
+  const { icon, ...colors } = categoryAppearance(category);
+  for (const [name, value] of Object.entries(colors)) container.style.setProperty(`--category-${name}`, value);
+  return icon;
+}
+
+function categoryIcon(category, container) {
+  const name = applyCategoryAppearance(category, container);
   const icon = document.createElement("span");
   icon.className = "category-icon";
   icon.setAttribute("aria-hidden", "true");
-  const paths = [
-    '<path d="M5 3v6a3 3 0 0 0 6 0V3M8 3v18M19 21V3c-4 3-4 9 0 9"/>',
-    '<rect x="4" y="4" width="16" height="14" rx="3"/><path d="M4 11h16M7 21v-3M17 21v-3M8 15h.01M16 15h.01"/>',
-    '<path d="m3 11 9-8 9 8M5 10v11h14V10M9 21v-7h6v7"/>'
-  ];
-  icon.innerHTML = `<svg viewBox="0 0 24 24">${paths[index] || '<path d="M3 3h8l10 10-8 8L3 11z"/><circle cx="7" cy="7" r="1"/>'}</svg>`;
+  icon.innerHTML = `<svg viewBox="0 0 24 24">${categoryIcons[name]}</svg>`;
   return icon;
 }
 
@@ -131,6 +180,7 @@ function updateExpenseForm() {
   byId("entry-category-name").textContent = byId("category").value || "Выберите категорию";
   byId("entry-categories").querySelectorAll("[data-category]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.category === byId("category").value));
+    applyCategoryAppearance(button.dataset.category, button);
   });
 }
 
@@ -327,12 +377,12 @@ function renderBudgets() {
       row = byId("budget-row").content.firstElementChild.cloneNode(true);
       row.dataset.category = category;
       row.querySelector("h3").textContent = category;
-      row.querySelector(".category-icon").replaceWith(categoryIcon(category, row));
       const edit = row.querySelector("button");
       edit.setAttribute("aria-label", `Изменить лимит: ${category}`);
       edit.addEventListener("click", () => openBudget(category));
       list.append(row);
     }
+    row.querySelector(".category-icon").replaceWith(categoryIcon(category, row));
     const amount = budgets.find((budget) => budget.category === category)?.amount;
     const spent = expenses.filter((expense) => expense.category === category)
       .reduce((sum, expense) => sum + expense.amount, 0);
@@ -376,9 +426,11 @@ function categoryChip(category, selected, onSelect) {
   button.type = "button";
   button.className = "category-chip";
   button.dataset.category = category;
-  const [color, tint] = category ? categoryColors[data.categories.indexOf(category) % categoryColors.length] : ["#7C203A", "#F8EDF1"];
-  button.style.setProperty("--category-color", color);
-  button.style.setProperty("--category-tint", tint);
+  if (category) applyCategoryAppearance(category, button);
+  else {
+    button.style.setProperty("--category-color", "#7C203A");
+    button.style.setProperty("--category-tint", "#F8EDF1");
+  }
   const check = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   check.setAttribute("viewBox", "0 0 24 24");
   check.setAttribute("aria-hidden", "true");
@@ -447,6 +499,7 @@ function render() {
   byId("period-summary").hidden = !(from || to || selectedCategory);
   byId("category-filters").querySelectorAll("button").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.category === selectedCategory));
+    if (button.dataset.category) applyCategoryAppearance(button.dataset.category, button);
   });
 
   const expenses = data.expenses.filter((expense) => (!selectedCategory || expense.category === selectedCategory) &&
