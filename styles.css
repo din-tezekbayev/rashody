@@ -52,6 +52,8 @@ summary { color: #7c203a; cursor: pointer; min-height: 44px; padding: 12px 0; wi
 .budget-row h3 { margin: 0; font-size: 17px; overflow-wrap: anywhere; }
 .budget-saved { margin: 8px 0 16px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .budget-summary { margin-bottom: 16px; line-height: 1.5; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+#budget-overview { margin-top: 16px; }
+#budget-total { color: #7c203a; font-weight: 650; }
 .budget-remaining.over-budget { color: #ad2536; font-weight: 600; }
 .budget-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 #budget-status { margin-top: 12px; color: #276341; }

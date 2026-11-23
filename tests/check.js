@@ -199,6 +199,8 @@
     document.dispatchEvent(new Event("visibilitychange"));
     check(budgetForm().textContent.includes("Не задан") && byId("budget-month").textContent ===
       nextMonth.toLocaleDateString("ru-RU", { month: "long", year: "numeric" }), "Новый месяц показан без переноса лимитов");
+    check(byId("budget-total").textContent === "Общий бюджет: Не задан" && byId("budget-spent").textContent === "Потрачено: 0 ₸" &&
+      byId("budget-remaining").textContent === "Осталось: —", "Общие суммы нового месяца не включают старые лимиты и траты");
     limit("7 000");
     check(data.budgets.some((budget) => budget.month === currentMonth && budget.amount === 25000) &&
       data.budgets.some((budget) => budget.month === localDate().slice(0, 7) && budget.amount === 7000), "Лимиты разных месяцев хранятся отдельно");
@@ -243,6 +245,43 @@
   add(String(Number.MAX_SAFE_INTEGER));
   check(spentText() === "Потрачено: 9 007 199 254 740 991 ₸" &&
     remainingText() === "Перерасход: 9 007 199 254 740 990 ₸", "Расходы и разница точны у границы безопасного диапазона");
+  check(byId("budget-spent").textContent === spentText() && byId("budget-remaining").textContent === remainingText(), "Общий перерасход точен у границы безопасного диапазона");
+
+  reset();
+  check(byId("budget-total").textContent === "Общий бюджет: Не задан" && byId("budget-spent").textContent === "Потрачено: 0 ₸" &&
+    byId("budget-remaining").textContent === "Осталось: —" && !byId("budget-remaining").classList.contains("over-budget"), "Без лимитов общий бюджет не задан, расходы нулевые, остаток прочерк");
+  limit("20 000");
+  limit("10 000", byId("budget-list").children[1]);
+  limit("30 000", byId("budget-list").children[2]);
+  add("5 000");
+  add("2 500", "KZT", localDate(), "Транспорт");
+  add("12 000", "KZT", localDate(), "Дом");
+  check(byId("budget-total").textContent === "Общий бюджет: 60 000 ₸" && byId("budget-spent").textContent === "Потрачено: 19 500 ₸" &&
+    byId("budget-remaining").textContent === "Осталось: 40 500 ₸" && byId("budget-missing").hidden, "Общий бюджет 60 000 ₸, расходы 19 500 ₸, остаток 40 500 ₸; все лимиты заданы");
+  const overview = byId("budget-overview").textContent;
+  add("12,50", "USD");
+  add("100", "KZT", localDate(previousMonth));
+  add("100", "KZT", `${new Date().getFullYear() - 1}${localDate().slice(4)}`);
+  byId("period-from").value = "1900-01-01";
+  byId("period-to").value = "1900-01-02";
+  byId("period-to").dispatchEvent(new Event("change"));
+  check(rows().length === 0 && byId("budget-overview").textContent === overview, "Общий бюджет не зависит от валюты, другого месяца, года и фильтра периода");
+  byId("reset-period").click();
+  byId("new-category").value = "Здоровье";
+  byId("save-category").click();
+  check(!byId("budget-missing").hidden && byId("budget-total").textContent === "Общий бюджет: 60 000 ₸", "Новая категория сразу показывает пояснение о незаданном лимите");
+  for (const index of [1, 2]) byId("budget-list").children[index].querySelector('button[type="button"]').click();
+  check(byId("budget-total").textContent === "Общий бюджет: 20 000 ₸" && byId("budget-spent").textContent === "Потрачено: 19 500 ₸" &&
+    byId("budget-remaining").textContent === "Осталось: 500 ₸" && !byId("budget-missing").hidden, "Частичный бюджет учитывает расходы категорий без лимита");
+  add("1 000", "KZT", localDate(), "Дом");
+  check(byId("budget-remaining").textContent === "Перерасход: 500 ₸" && byId("budget-remaining").classList.contains("over-budget"), "Трата без лимита сразу увеличивает общий перерасход");
+  limit("20 500");
+  check(byId("budget-remaining").textContent === "Осталось: 0 ₸" && !byId("budget-remaining").classList.contains("over-budget"), "При равенстве общего бюджета и расходов предупреждения нет");
+  limit("30 000");
+  check(byId("budget-remaining").textContent === "Осталось: 9 500 ₸", "Изменение лимита пересчитывает общий остаток");
+  budgetForm().querySelector('button[type="button"]').click();
+  check(byId("budget-total").textContent === "Общий бюджет: Не задан" && byId("budget-spent").textContent === "Потрачено: 20 500 ₸" &&
+    byId("budget-remaining").textContent === "Осталось: —" && !byId("budget-remaining").classList.contains("over-budget"), "Удаление последнего лимита сохраняет расходы и убирает общий перерасход");
 
   const legacy = JSON.stringify({ categories: [...initialCategories], expenses: [{ amount: 5000, category: "Еда", date: localDate(), comment: "Старая запись" }] });
   localStorage.setItem("rashody", legacy);
@@ -283,5 +322,10 @@
   load();
   renderCategories();
   render();
-  return { passed: passed.length, checks: passed, next: "Обновите страницу: ожидаются 19 500 ₸, 12,60 $, 7 трат и категория Здоровье." };
+  limit("20 000");
+  limit("10 000", byId("budget-list").children[1]);
+  limit("30 000", byId("budget-list").children[2]);
+  check(byId("budget-total").textContent === "Общий бюджет: 60 000 ₸" && byId("budget-remaining").textContent === "Осталось: 40 500 ₸",
+    "Итоговые тестовые данные готовы к проверке F5 с бюджетом");
+  return { passed: passed.length, checks: passed, next: "Обновите страницу: ожидаются 19 500 ₸, 12,60 $, 7 трат, категория Здоровье, бюджет 60 000 ₸ и остаток 40 500 ₸." };
 })();

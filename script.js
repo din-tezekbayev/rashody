@@ -132,9 +132,24 @@ function updateBudget(form, remove = false) {
   input.focus();
 }
 
+function renderBudgetSummary(container, amount, spent) {
+  const overBudget = amount !== undefined && spent > amount;
+  container.querySelector(".budget-spent").textContent = `Потрачено: ${money(spent, "KZT")}`;
+  const remaining = container.querySelector(".budget-remaining");
+  remaining.textContent = amount === undefined ? "Осталось: —" : overBudget
+    ? `Перерасход: ${money(spent - amount, "KZT")}` : `Осталось: ${money(amount - spent, "KZT")}`;
+  remaining.classList.toggle("over-budget", overBudget);
+}
+
 function renderBudgets() {
   const list = byId("budget-list");
   const month = localDate().slice(0, 7);
+  const budgets = data.budgets.filter((budget) => budget.month === month);
+  const expenses = data.expenses.filter((expense) => expense.currency === "KZT" && expense.date.slice(0, 7) === month);
+  const totalLimit = budgets.length ? budgets.reduce((sum, budget) => sum + budget.amount, 0) : undefined;
+  byId("budget-total").textContent = `Общий бюджет: ${totalLimit === undefined ? "Не задан" : money(totalLimit, "KZT")}`;
+  renderBudgetSummary(byId("budget-overview"), totalLimit, expenses.reduce((sum, expense) => sum + expense.amount, 0));
+  byId("budget-missing").hidden = budgets.length === data.categories.length;
   byId("budget-month").textContent = new Date().toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
   if (list.dataset.month !== month || [...list.children].some((form, index) => form.dataset.category !== data.categories[index])) {
     list.replaceChildren();
@@ -162,16 +177,10 @@ function renderBudgets() {
       form.querySelector('button[type="button"]').addEventListener("click", () => updateBudget(form, true));
       list.append(form);
     }
-    const amount = data.budgets.find((budget) => budget.month === month && budget.category === category)?.amount;
-    const spent = data.expenses.filter((expense) => expense.currency === "KZT" &&
-      expense.category === category && expense.date.slice(0, 7) === month)
+    const amount = budgets.find((budget) => budget.category === category)?.amount;
+    const spent = expenses.filter((expense) => expense.category === category)
       .reduce((sum, expense) => sum + expense.amount, 0);
-    const overBudget = amount !== undefined && spent > amount;
-    form.querySelector(".budget-spent").textContent = `Потрачено: ${money(spent, "KZT")}`;
-    const remaining = form.querySelector(".budget-remaining");
-    remaining.textContent = amount === undefined ? "Осталось: —" : overBudget
-      ? `Перерасход: ${money(spent - amount, "KZT")}` : `Осталось: ${money(amount - spent, "KZT")}`;
-    remaining.classList.toggle("over-budget", overBudget);
+    renderBudgetSummary(form, amount, spent);
     const saved = amount === undefined ? "" : String(amount);
     if (form.dataset.amount !== saved) {
       form.querySelector("input").value = saved;

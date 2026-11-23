@@ -82,6 +82,12 @@
       <h2 id="budget-heading">Бюджет месяца</h2>
       <p id="budget-month"></p>
       <p class="budget-note">Бюджет только в ₸</p>
+      <div id="budget-overview" class="budget-summary" aria-live="polite">
+        <p id="budget-total"></p>
+        <p id="budget-spent" class="budget-spent"></p>
+        <p id="budget-remaining" class="budget-remaining"></p>
+        <p id="budget-missing" class="budget-note" hidden>Есть категории без лимита</p>
+      </div>
       <div id="budget-list"></div>
       <p id="budget-status" role="status"></p>
     </section>
