@@ -8,7 +8,10 @@
   }
   const rows = () => [...document.querySelectorAll(".expense")];
   function openEntry() {
-    if (byId("expense-dialog").open) return;
+    if (byId("expense-dialog").open) {
+      if (!categoryForm.hidden) byId("category-back").click();
+      return;
+    }
     document.querySelectorAll("dialog[open]").forEach((dialog) => dialog.close());
     byId("open-expense").focus();
     byId("open-expense").click();
@@ -18,6 +21,7 @@
     if (byId("category-details").hidden) byId("new-category-toggle").click();
     byId("new-category").value = value;
     byId("save-category").click();
+    if (!byId("select-existing-category").hidden) byId("select-existing-category").click();
     byId("expense-dialog").close();
   }
   function add(amount, currency = "KZT", date = localDate(), category = "Еда", comment = "") {
@@ -36,6 +40,8 @@
     data = { categories: [...initialCategories], expenses: [], budgets: [] };
     selectedCategory = "";
     expenseDraft = false;
+    categoryDraftStarted = false;
+    setCategoryScreen(false);
     expenseForm.reset();
     byId("date").value = localDate();
     byId("expense-details").open = false;
@@ -396,7 +402,7 @@
   period(`${thisYear}-11-10`, `${thisYear}-11-16`);
   check(byId("period-label").textContent.startsWith("10–16"), "Дни одного месяца показаны компактно");
   quickPeriod(0);
-  const longCategory = "Очень длинная категория <b>для проверки переноса</b>";
+  const longCategory = "Длинная категория <b>с переносом</b>";
   newCategory(longCategory);
   check(chip(longCategory).textContent === longCategory && !chip(longCategory).querySelector("b"), "Новая длинная категория добавляется в чипы как текст");
   chip(longCategory).click();
@@ -498,6 +504,164 @@
     header.setPointerCapture = originalCapture;
     window.matchMedia = originalMedia;
   }
+  reset();
+  openEntry();
+  byId("amount").value = "2500";
+  byId("comment").value = "Черновик перед категорией";
+  byId("date").value = daysAgo(2);
+  byId("amount").dispatchEvent(new Event("input", { bubbles: true }));
+  byId("expense-details").open = true;
+  byId("new-category-toggle").click();
+  check(expenseForm.hidden && !categoryForm.hidden && byId("entry-heading").textContent === "Новая категория" &&
+    document.activeElement === byId("new-category") && document.querySelectorAll("dialog[open]").length === 1,
+    "Создание категории заменяет экран внутри одной модальной оболочки");
+  check(byId("category-palette").querySelectorAll("input").length === 10 &&
+    categoryForm.querySelectorAll('[name="category-color"]').length === 11 && categoryPreviewColor === "#8430CE",
+    "Десять цветов и Свой цвет, по умолчанию первый наименее используемый");
+  byId("new-category").value = "  Спорт   и отдых  ";
+  byId("new-category").dispatchEvent(new Event("input"));
+  for (const { color } of categoryPalette) {
+    categoryForm.querySelector(`[value="${color}"]`).click();
+    check(categoryPreviewColor === color && byId("category-preview").style.getPropertyValue("--category-color") === color &&
+      localStorage.getItem("rashody") === null, `Готовый цвет ${color} обновляет только превью`);
+  }
+  categoryForm.querySelector('[value="#137333"]').click();
+  check(byId("category-preview-name").textContent === "Спорт и отдых" && byId("amount").value === "2500",
+    "Превью нормализует имя, ввод траты не меняется");
+  byId("category-back").click();
+  check(!expenseForm.hidden && categoryForm.hidden && byId("amount").value === "2500" &&
+    byId("comment").value === "Черновик перед категорией" && byId("date").value === daysAgo(2) && byId("expense-details").open &&
+    document.activeElement === byId("new-category-toggle") && data.categories.length === 3 && data.expenses.length === 0,
+    "Назад сохраняет все поля и раскрытие траты без скрытого создания");
+  byId("new-category-toggle").click();
+  check(byId("new-category").value === "  Спорт   и отдых  " && categoryPreviewColor === "#137333" && !byId("category-draft-note").hidden,
+    "Повторный вход возобновляет черновик имени и цвета");
+  expenseForm.requestSubmit();
+  check(data.expenses.length === 0, "Скрытая форма траты не отправляется из редактора категории");
+  byId("expense-dialog").close();
+  openEntry();
+  check(categoryForm.hidden && byId("amount").value === "2500", "Повторный плюс открывает трату после закрытия редактора");
+  byId("new-category-toggle").click();
+  check(categoryPreviewColor === "#137333" && byId("new-category").value.includes("Спорт"), "Черновик категории переживает закрытие всей панели");
+  byId("save-category").click();
+  check(categoryForm.hidden && !expenseForm.hidden && byId("category").value === "Спорт и отдых" &&
+    byId("amount").value === "2500" && byId("comment").value === "Черновик перед категорией" && data.expenses.length === 0 &&
+    data.categoryStyles.length === 1 && data.categoryStyles[0].color === "#137333" && data.categoryStyles[0].icon === "tag" &&
+    !categoryDraftStarted && document.activeElement === byId("amount"), "Имя, цвет и Метка сохраняются атомарно, возврат к прежней трате");
+  byId("save-category").click();
+  categoryForm.requestSubmit();
+  check(data.categories.length === 4 && data.categoryStyles.length === 1, "Повторное подтверждение не дублирует категорию или оформление");
+  expenseForm.requestSubmit();
+  check(data.expenses.length === 1 && data.expenses[0].amount === 2500 && data.expenses[0].category === "Спорт и отдых" &&
+    data.expenses[0].date === daysAgo(2), "Трата сохраняется отдельно с выбранной новой категорией и прежней датой");
+  openEntry();
+  byId("new-category-toggle").click();
+  byId("new-category").value = "Белая категория";
+  byId("category-color-custom").click();
+  check(!byId("category-custom-color").hidden && byId("category-color-custom").checked, "Свой цвет раскрывает picker и HEX как отдельный выбор");
+  check(pickerHex("rgb(0, 128, 255)") === "#0080FF" && pickerHex("#ffffff") === "#FFFFFF", "Цвет picker нормализуется к восьмибитному sRGB HEX");
+  check(pickerHex("rgba(0, 0, 0, 0.5)") === null && pickerHex("не цвет") === null, "Прозрачный или неверный цвет picker не подменяется чёрным");
+  byId("category-color-picker").value = "#000000";
+  byId("category-color-picker").dispatchEvent(new Event("change", { bubbles: true }));
+  check(byId("category-hex").value === "#000000" && categoryPreviewColor === "#000000", "Нативный picker синхронизирует HEX и превью");
+  const beforeInvalidHex = localStorage.getItem("rashody");
+  for (const value of ["", "#12", "#GGGGGG", "red", "#12345678", "url(test)"]) {
+    byId("category-hex").value = value;
+    byId("category-hex").dispatchEvent(new Event("input"));
+    byId("category-hex").dispatchEvent(new Event("blur"));
+    categoryForm.requestSubmit();
+    check(!byId("category-hex-error").hidden && !categoryForm.hidden && byId("category-hex").value === value &&
+      categoryPreviewColor === "#000000" && localStorage.getItem("rashody") === beforeInvalidHex,
+      `Неверный HEX ${value} не меняет превью или данные`);
+  }
+  categoryForm.querySelector('[value="#1967D2"]').click();
+  check(byId("category-custom-color").hidden && byId("category-hex-error").hidden && byId("category-hex").value === "#1967D2",
+    "Готовый цвет исправляет ошибку HEX");
+  byId("category-color-custom").click();
+  byId("category-hex").value = "#1967d2";
+  byId("category-hex").dispatchEvent(new Event("input"));
+  check(!byId("category-custom-color").hidden && byId("category-color-custom").checked, "Совпадение HEX с готовым цветом не закрывает своё поле");
+  byId("category-hex").value = "#ffffff";
+  byId("category-hex").dispatchEvent(new Event("input"));
+  byId("category-hex").dispatchEvent(new Event("blur"));
+  check(byId("category-hex").value === "#FFFFFF" && byId("category-color-picker").value === "#ffffff" &&
+    categoryPreviewColor === "#FFFFFF" && byId("category-preview").style.getPropertyValue("--category-icon-color") === "#000000",
+    "HEX нормализуется, синхронизирует picker и сохраняет читаемость белого");
+  categoryForm.requestSubmit();
+  check(categoryAppearance("Белая категория").color === "#FFFFFF" && data.expenses.length === 1,
+    "Свой цвет сохраняется без автоматического добавления траты");
+  byId("new-category-toggle").click();
+  byId("new-category").value = " СПОРТ  И ОТДЫХ ";
+  categoryForm.querySelector('[value="#AD1457"]').click();
+  const beforeDuplicate = localStorage.getItem("rashody");
+  categoryForm.requestSubmit();
+  check(!byId("select-existing-category").hidden && !categoryForm.hidden &&
+    localStorage.getItem("rashody") === beforeDuplicate && categoryAppearance("Спорт и отдых").color === "#137333",
+    "Дубликат с другим цветом не перезаписывает существующую категорию");
+  byId("select-existing-category").click();
+  check(categoryForm.hidden && byId("category").value === "Спорт и отдых" && !categoryDraftStarted &&
+    localStorage.getItem("rashody") === beforeDuplicate, "Явный выбор существующей категории не пишет в хранилище");
+  byId("new-category-toggle").click();
+  const beforeInvalidName = localStorage.getItem("rashody");
+  for (const name of [" ", "Я".repeat(41), "Тест\u0001"]) {
+    byId("new-category").value = name;
+    categoryForm.requestSubmit();
+    check(!byId("new-category-error").hidden && !categoryForm.hidden && byId("new-category").value === name &&
+      localStorage.getItem("rashody") === beforeInvalidName, "Неверное имя не сохраняется и не теряет ввод");
+  }
+  byId("new-category").value = "К".repeat(39) + "😀";
+  categoryForm.requestSubmit();
+  check(data.categories.includes("К".repeat(39) + "😀"), "Ограничение имени считает символы Unicode, а не пары UTF-16");
+  byId("new-category-toggle").click();
+  byId("new-category").value = "Cafe\u0301";
+  categoryForm.requestSubmit();
+  check(data.categories.includes("Café"), "Новое имя сохраняется в нормализации NFC");
+  reset();
+  openEntry();
+  byId("amount").value = "999";
+  byId("comment").value = "Не терять при отказе";
+  byId("amount").dispatchEvent(new Event("input", { bubbles: true }));
+  byId("new-category-toggle").click();
+  byId("new-category").value = "Сбой сохранения";
+  const categoryDataBeforeFailure = data;
+  const draftColor = categoryPreviewColor;
+  try {
+    Storage.prototype.setItem = () => { throw new Error("Storage unavailable"); };
+    categoryForm.requestSubmit();
+    check(data === categoryDataBeforeFailure && data.categories.length === 3 && !categoryForm.hidden &&
+      !byId("category-storage-error").hidden && byId("new-category").value === "Сбой сохранения" &&
+      categoryPreviewColor === draftColor && byId("amount").value === "999" && byId("comment").value === "Не терять при отказе" &&
+      localStorage.getItem("rashody") === null, "Отказ записи сохраняет оба черновика и не создаёт половину категории");
+  } finally {
+    Storage.prototype.setItem = originalSet;
+  }
+  byId("category-back").click();
+  byId("new-category-toggle").click();
+  categoryForm.requestSubmit();
+  check(data.categories.length === 4 && data.categoryStyles.length === 1 && data.expenses.length === 0 &&
+    byId("amount").value === "999", "Повтор после отказа сохраняет категорию один раз и возвращает трату");
+  reset();
+  const tenNames = [...initialCategories, ...Array.from({ length: 7 }, (_, index) => `Цвет ${index + 4}`)];
+  save({ ...data, categories: tenNames, categoryStyles: categoryPalette.map(({ color }, index) => ({ category: tenNames[index], color, icon: "tag" })) });
+  renderCategories();
+  render();
+  const firstTenStyles = JSON.stringify(data.categoryStyles);
+  openEntry();
+  byId("new-category-toggle").click();
+  check(categoryPreviewColor === "#1967D2", "При равной занятости всех цветов новый цвет выбирается по порядку палитры");
+  byId("new-category").value = "Одиннадцатая";
+  categoryForm.requestSubmit();
+  check(data.categories.length === 11 && categoryAppearance("Одиннадцатая").color === "#1967D2" &&
+    JSON.stringify(data.categoryStyles.slice(0, 10)) === firstTenStyles, "Одиннадцатая категория повторяет цвет без перекрашивания прежних");
+  byId("expense-dialog").close();
+  const legacyLongName = "Старое название ".repeat(5).trim();
+  const legacyLong = JSON.stringify({ ...data, categories: [...data.categories, legacyLongName] });
+  localStorage.setItem("rashody", legacyLong);
+  load();
+  renderCategories();
+  render();
+  check(data.categories.includes(legacyLongName) && byId("budget-list").lastElementChild.querySelector("h3").textContent === legacyLongName &&
+    localStorage.getItem("rashody") === legacyLong, "Прежние длинные имена читаются без обрезания и перезаписи");
   reset();
   const legacy = JSON.stringify({ categories: [...initialCategories], expenses: [{ amount: 5000, category: "Еда", date: localDate(), comment: "Старая запись" }] });
   localStorage.setItem("rashody", legacy);

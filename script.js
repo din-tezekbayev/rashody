@@ -4,15 +4,27 @@ const STORAGE_KEY = "rashody";
 const initialCategories = ["Еда", "Транспорт", "Дом"];
 const byId = (id) => document.getElementById(id);
 const expenseForm = byId("expense-form");
+const categoryForm = byId("category-details");
 let data = { categories: [...initialCategories], expenses: [], budgets: [] };
 let storageReadable = true;
 let budgetsExpanded = false;
 let expenseDraft = false;
+let categoryDraftStarted = false;
+let categoryPreviewColor = "#1967D2";
+let expenseScrollTop = 0;
 let selectedCategory = "";
 let appliedPeriod = { from: "", to: "", label: "Все даты" };
 const categoryColors = [
   ["#1967D2", "#E8F0FE"], ["#137333", "#E6F4EA"], ["#A85B00", "#FEF7E0"],
   ["#8430CE", "#F3E8FD"], ["#00757D", "#E0F2F1"]
+];
+
+const categoryPalette = [
+  { name: "Синий", color: "#1967D2" }, { name: "Зелёный", color: "#137333" },
+  { name: "Янтарный", color: "#A85B00" }, { name: "Фиолетовый", color: "#8430CE" },
+  { name: "Бирюзовый", color: "#00757D" }, { name: "Индиго", color: "#3F51B5" },
+  { name: "Розовый", color: "#AD1457" }, { name: "Коричневый", color: "#795548" },
+  { name: "Оливковый", color: "#657A18" }, { name: "Серо-синий", color: "#455A64" }
 ];
 
 const categoryIcons = {
@@ -50,7 +62,11 @@ function categoryAppearance(category) {
   const style = matches[0];
   const icon = typeof style.icon === "string" && Object.hasOwn(categoryIcons, style.icon) ? style.icon : "tag";
   if (typeof style.color !== "string" || !/^#[0-9a-f]{6}$/i.test(style.color)) return { ...legacy, icon };
-  const chosen = style.color.toUpperCase();
+  return colorAppearance(style.color, icon);
+}
+
+function colorAppearance(color, icon = "tag") {
+  const chosen = color.toUpperCase();
   const toHex = (channels) => "#" + channels.map((channel) => channel.toString(16).padStart(2, "0")).join("").toUpperCase();
   let progress = chosen;
   while (contrastRatio(progress, "#E5E6E8") < 3) {
@@ -66,14 +82,14 @@ function categoryAppearance(category) {
   };
 }
 
-function applyCategoryAppearance(category, container) {
-  const { icon, ...colors } = categoryAppearance(category);
+function applyAppearance(appearance, container) {
+  const { icon, ...colors } = appearance;
   for (const [name, value] of Object.entries(colors)) container.style.setProperty(`--category-${name}`, value);
   return icon;
 }
 
-function categoryIcon(category, container) {
-  const name = applyCategoryAppearance(category, container);
+function appearanceIcon(appearance, container) {
+  const name = applyAppearance(appearance, container);
   const icon = document.createElement("span");
   icon.className = "category-icon";
   icon.setAttribute("aria-hidden", "true");
@@ -180,13 +196,14 @@ function updateExpenseForm() {
   byId("entry-category-name").textContent = byId("category").value || "Выберите категорию";
   byId("entry-categories").querySelectorAll("[data-category]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.category === byId("category").value));
-    applyCategoryAppearance(button.dataset.category, button);
+    applyAppearance(categoryAppearance(button.dataset.category), button);
   });
 }
 
 byId("open-expense").addEventListener("click", () => {
   if (!storageReadable || document.querySelector("dialog[open]")) return;
   if (!expenseDraft && selectedCategory) byId("category").value = selectedCategory;
+  setCategoryScreen(false);
   byId("save-notice").hidden = true;
   updateExpenseForm();
   showExpenseDialog();
@@ -312,7 +329,7 @@ function load() {
     storageReadable = false;
     byId("storage-error").textContent = "Не удалось прочитать сохранённые данные. Они не изменены. Изменения недоступны: проверьте разрешение браузера на хранение данных или восстановите сохранённые записи.";
     byId("storage-error").hidden = false;
-    document.querySelectorAll("#expense-form input, #expense-form select, #expense-form textarea, #expense-form button, #budget-list button, #budget-form input, #budget-form button, #open-expense, #add-expense, #budget-save")
+    document.querySelectorAll("#expense-form input, #expense-form select, #expense-form textarea, #expense-form button, #category-details input, #category-details button, #save-category, #budget-list button, #budget-form input, #budget-form button, #open-expense, #add-expense, #budget-save")
       .forEach((field) => { field.disabled = true; });
   }
 }
@@ -382,7 +399,7 @@ function renderBudgets() {
       edit.addEventListener("click", () => openBudget(category));
       list.append(row);
     }
-    row.querySelector(".category-icon").replaceWith(categoryIcon(category, row));
+    row.querySelector(".category-icon").replaceWith(appearanceIcon(categoryAppearance(category), row));
     const amount = budgets.find((budget) => budget.category === category)?.amount;
     const spent = expenses.filter((expense) => expense.category === category)
       .reduce((sum, expense) => sum + expense.amount, 0);
@@ -426,7 +443,7 @@ function categoryChip(category, selected, onSelect) {
   button.type = "button";
   button.className = "category-chip";
   button.dataset.category = category;
-  if (category) applyCategoryAppearance(category, button);
+  if (category) applyAppearance(categoryAppearance(category), button);
   else {
     button.style.setProperty("--category-color", "#7C203A");
     button.style.setProperty("--category-tint", "#F8EDF1");
@@ -458,17 +475,143 @@ function renderCategories(selected = byId("category").value) {
     button.disabled = !storageReadable;
     return button;
   }));
-  byId("new-category-toggle").setAttribute("aria-expanded", String(!byId("category-details").hidden));
   byId("new-category-toggle").disabled = !storageReadable;
+  byId("save-category").disabled = !storageReadable;
   updateExpenseForm();
 }
 
+function setCategoryScreen(editing) {
+  expenseForm.hidden = editing;
+  categoryForm.hidden = !editing;
+  byId("category-back").hidden = !editing;
+  byId("add-expense").hidden = editing;
+  byId("save-category").hidden = !editing;
+  byId("entry-heading").textContent = editing ? "Новая категория" : "Добавить трату";
+}
+
+function normalizedCategoryName(name) {
+  return name.normalize("NFC").trim().replace(/\s+/gu, " ");
+}
+
+function categoryHex() {
+  const value = byId("category-hex").value.trim();
+  return /^#[0-9a-f]{6}$/i.test(value) ? value.toUpperCase() : null;
+}
+
+function updateCategoryPreview() {
+  const preview = byId("category-preview");
+  const appearance = colorAppearance(categoryPreviewColor);
+  byId("category-preview-icon").replaceChildren(appearanceIcon(appearance, preview));
+  byId("category-preview-name").textContent = normalizedCategoryName(byId("new-category").value) || "Название категории";
+  const preset = categoryPalette.find((option) => option.color === categoryPreviewColor);
+  byId("category-color-label").textContent = `${byId("category-color-custom").checked ? "Свой цвет" : preset.name} · ${categoryPreviewColor}`;
+}
+
+function chooseCategoryColor() {
+  const selected = categoryForm.querySelector('[name="category-color"]:checked');
+  const custom = selected.value === "custom";
+  byId("category-custom-color").hidden = !custom;
+  if (!custom) {
+    categoryPreviewColor = selected.value;
+    byId("category-hex").value = categoryPreviewColor;
+    byId("category-color-picker").value = categoryPreviewColor;
+    fieldError("category-hex", "");
+  }
+  updateCategoryPreview();
+}
+
+function renderCategoryPalette() {
+  byId("category-palette").replaceChildren(...categoryPalette.map(({ name, color }) => {
+    const label = document.createElement("label");
+    label.className = "palette-option";
+    label.style.setProperty("--swatch-color", color);
+    label.style.setProperty("--swatch-ink", colorAppearance(color)["icon-color"]);
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = "category-color";
+    input.value = color;
+    input.setAttribute("aria-label", `${name}, ${color}`);
+    const swatch = document.createElement("span");
+    swatch.className = "color-swatch";
+    swatch.setAttribute("aria-hidden", "true");
+    swatch.innerHTML = '<svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>';
+    label.append(input, swatch);
+    return label;
+  }));
+}
+
 byId("new-category-toggle").addEventListener("click", () => {
-  const details = byId("category-details");
-  details.hidden = !details.hidden;
-  byId("new-category-toggle").setAttribute("aria-expanded", String(!details.hidden));
-  if (!details.hidden) byId("new-category").focus();
+  if (!storageReadable) return;
+  expenseScrollTop = expenseForm.scrollTop;
+  const resumed = categoryDraftStarted;
+  if (!resumed) {
+    const colors = data.categories.map((category) => categoryAppearance(category).color);
+    const counts = categoryPalette.map(({ color }) => colors.filter((used) => used === color).length);
+    categoryPreviewColor = categoryPalette[counts.indexOf(Math.min(...counts))].color;
+    byId("new-category").value = "";
+    byId("category-hex").value = categoryPreviewColor;
+    byId("category-color-picker").value = categoryPreviewColor;
+    categoryForm.querySelectorAll('[name="category-color"]').forEach((input) => { input.checked = input.value === categoryPreviewColor; });
+    byId("category-custom-color").hidden = true;
+    byId("select-existing-category").hidden = true;
+    byId("category-storage-error").hidden = true;
+    fieldError("new-category", "");
+    fieldError("category-hex", "");
+    categoryForm.scrollTop = 0;
+  }
+  categoryDraftStarted = true;
+  byId("category-draft-note").hidden = !resumed;
+  categoryForm.querySelectorAll("input, button").forEach((control) => { control.disabled = false; });
+  updateCategoryPreview();
+  setCategoryScreen(true);
+  byId("new-category").focus();
 });
+byId("category-back").addEventListener("click", () => {
+  setCategoryScreen(false);
+  expenseForm.scrollTop = expenseScrollTop;
+  byId("new-category-toggle").focus();
+});
+categoryForm.addEventListener("change", (event) => {
+  if (event.target.name === "category-color") chooseCategoryColor();
+});
+byId("new-category").addEventListener("input", () => {
+  byId("select-existing-category").hidden = true;
+  fieldError("new-category", "");
+  updateCategoryPreview();
+});
+byId("category-hex").addEventListener("input", () => {
+  const color = categoryHex();
+  if (color) {
+    categoryPreviewColor = color;
+    byId("category-color-picker").value = color;
+    fieldError("category-hex", "");
+    updateCategoryPreview();
+  }
+});
+byId("category-hex").addEventListener("blur", () => {
+  if (!byId("category-color-custom").checked) return;
+  const color = categoryHex();
+  fieldError("category-hex", color ? "" : "Введите цвет в формате #RRGGBB, например #1967D2.");
+  if (color) byId("category-hex").value = color;
+});
+function pickerHex(value) {
+  if (/^#[0-9a-f]{6}$/i.test(value)) return value.toUpperCase();
+  if (!CSS.supports("color", value)) return null;
+  const context = document.createElement("canvas").getContext("2d");
+  context.fillStyle = value;
+  context.fillRect(0, 0, 1, 1);
+  const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data;
+  return alpha === 255 ? "#" + [red, green, blue].map((channel) => channel.toString(16).padStart(2, "0")).join("").toUpperCase() : null;
+}
+
+function syncCategoryPicker() {
+  const value = byId("category-color-picker").value;
+  byId("category-hex").value = pickerHex(value) || value;
+  byId("category-hex").dispatchEvent(new Event("input"));
+  if (!categoryHex()) fieldError("category-hex", "Выберите непрозрачный цвет в формате #RRGGBB.");
+}
+byId("category-color-picker").addEventListener("input", syncCategoryPicker);
+byId("category-color-picker").addEventListener("change", syncCategoryPicker);
 
 function render() {
   byId("open-expense").disabled = !storageReadable;
@@ -499,7 +642,7 @@ function render() {
   byId("period-summary").hidden = !(from || to || selectedCategory);
   byId("category-filters").querySelectorAll("button").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.category === selectedCategory));
-    if (button.dataset.category) applyCategoryAppearance(button.dataset.category, button);
+    if (button.dataset.category) applyAppearance(categoryAppearance(button.dataset.category), button);
   });
 
   const expenses = data.expenses.filter((expense) => (!selectedCategory || expense.category === selectedCategory) &&
@@ -525,7 +668,7 @@ function render() {
     const details = document.createElement("div");
     details.className = "expense-details";
     details.append(category, date);
-    item.append(categoryIcon(expense.category, item), details, amount);
+    item.append(appearanceIcon(categoryAppearance(expense.category), item), details, amount);
     if (expense.comment) {
       const comment = document.createElement("p");
       comment.className = "expense-comment";
@@ -538,7 +681,7 @@ function render() {
 
 expenseForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  if (!byId("expense-dialog").open || !storageReadable) return;
+  if (expenseForm.hidden || !byId("expense-dialog").open || !storageReadable) return;
   byId("expense-storage-error").hidden = true;
   const currency = byId("currency").value;
   const amount = parseAmount(byId("amount").value, currency);
@@ -570,8 +713,7 @@ expenseForm.addEventListener("submit", (event) => {
   byId("comment").value = "";
   expenseDraft = false;
   byId("expense-details").open = false;
-  byId("category-details").hidden = true;
-  byId("new-category-toggle").setAttribute("aria-expanded", "false");
+  setCategoryScreen(false);
   updateExpenseForm();
   render();
   const hiddenByFilters = selectedCategory && category !== selectedCategory ||
@@ -588,33 +730,50 @@ byId("currency").addEventListener("change", () => {
   fieldError("currency", "");
 });
 
-byId("save-category").addEventListener("click", () => {
-  const name = byId("new-category").value.trim();
-  fieldError("new-category", name ? "" : "Введите название категории.");
-  if (!name) {
-    byId("new-category").focus();
-    return;
-  }
-  const existing = data.categories.find((category) => category.toLocaleLowerCase("ru-RU") === name.toLocaleLowerCase("ru-RU"));
-  if (!existing && !save({ ...data, categories: [...data.categories, name] })) {
-    fieldError("new-category", byId("storage-error").textContent);
-    return;
-  }
-  byId("category-details").hidden = true;
+function finishCategoryCreation(name) {
+  categoryDraftStarted = false;
+  byId("new-category").value = "";
   expenseDraft = true;
-  renderCategories(existing || name);
+  renderCategories(name);
   renderBudgets();
   fieldError("category", "");
-  byId("new-category").value = "";
-  byId("new-category-toggle").setAttribute("aria-expanded", "false");
+  setCategoryScreen(false);
+  expenseForm.scrollTop = expenseScrollTop;
   byId("amount").focus();
-});
+}
 
-byId("new-category").addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
-    event.preventDefault();
-    byId("save-category").click();
+categoryForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (categoryForm.hidden || !byId("expense-dialog").open || !storageReadable) return;
+  const raw = byId("new-category").value;
+  const name = normalizedCategoryName(raw);
+  const nameError = !name ? "Введите название категории." : /[\u0000-\u001F\u007F]/u.test(raw)
+    ? "Название не должно содержать управляющие символы." : Array.from(name).length > 40 ? "Название должно быть не длиннее 40 символов." : "";
+  const existing = data.categories.find((category) => normalizedCategoryName(category).toLocaleLowerCase("ru-RU") === name.toLocaleLowerCase("ru-RU"));
+  const color = byId("category-color-custom").checked ? categoryHex() : categoryPreviewColor;
+  fieldError("new-category", nameError || (existing ? `Категория «${existing}» уже есть.` : ""));
+  fieldError("category-hex", color ? "" : "Введите цвет в формате #RRGGBB, например #1967D2.");
+  byId("select-existing-category").hidden = !existing || Boolean(nameError);
+  byId("select-existing-category").dataset.category = existing || "";
+  byId("category-storage-error").hidden = true;
+  if (nameError || existing || !color) {
+    byId(nameError || existing ? "new-category" : "category-hex").focus();
+    return;
   }
+  const categoryStyles = Array.isArray(data.categoryStyles)
+    ? data.categoryStyles.filter((style) => !style || style.category !== name) : [];
+  if (!save({ ...data, categories: [...data.categories, name], categoryStyles: [...categoryStyles, { category: name, color, icon: "tag" }] })) {
+    byId("category-storage-error").textContent = byId("storage-error").textContent;
+    byId("category-storage-error").hidden = false;
+    byId("category-storage-error").scrollIntoView({ block: "nearest" });
+    return;
+  }
+  finishCategoryCreation(name);
+});
+byId("select-existing-category").addEventListener("click", () => {
+  const button = byId("select-existing-category");
+  if (categoryForm.hidden || button.hidden || !storageReadable || !data.categories.includes(button.dataset.category)) return;
+  finishCategoryCreation(button.dataset.category);
 });
 
 function periodError(message = "", invalidFrom = false, invalidTo = false) {
@@ -672,6 +831,7 @@ document.querySelectorAll("[data-days]").forEach((button) => {
   });
 });
 
+renderCategoryPalette();
 load();
 renderCategories();
 byId("date").value = localDate();

@@ -80,6 +80,9 @@
   <dialog id="expense-dialog" class="modal" aria-labelledby="entry-heading">
     <header class="modal-header">
       <span class="sheet-handle" aria-hidden="true"></span>
+      <button id="category-back" class="icon-button" type="button" aria-label="Назад к трате" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>
+      </button>
       <h2 id="entry-heading">Добавить трату</h2>
       <button type="button" class="icon-button" data-close aria-label="Закрыть">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg>
@@ -101,18 +104,10 @@
         <div id="entry-categories" class="category-chips" role="group" aria-labelledby="entry-category-label" aria-describedby="category-error"></div>
         <p id="category-error" class="error" hidden></p>
       </div>
-      <button id="new-category-toggle" class="secondary category-create" type="button" aria-expanded="false" aria-controls="category-details">
+      <button id="new-category-toggle" class="secondary category-create" type="button" aria-controls="category-details">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         <span>Новая категория</span>
       </button>
-      <div id="category-details" class="category-entry" hidden>
-        <div class="field">
-          <label for="new-category">Название категории</label>
-          <input id="new-category" type="text" aria-describedby="new-category-error">
-          <p id="new-category-error" class="error" hidden></p>
-        </div>
-        <button id="save-category" type="button" class="secondary">Сохранить</button>
-      </div>
       <details id="expense-details">
         <summary><span>Дополнительно</span><span id="entry-meta"></span></summary>
         <div class="form-grid">
@@ -136,8 +131,47 @@
         </div>
       </details>
     </form>
+    <form id="category-details" class="category-editor" autocomplete="off" novalidate hidden>
+      <p id="category-draft-note" class="budget-note" hidden>Черновик категории</p>
+      <p id="category-storage-error" class="error" role="alert" hidden></p>
+      <div id="category-preview" class="category-preview" aria-label="Предпросмотр оформления">
+        <p class="preview-caption">Предпросмотр</p>
+        <div class="preview-heading"><span id="category-preview-icon"></span><span id="category-preview-name" class="preview-label">Название категории</span></div>
+        <span class="budget-meter" aria-hidden="true" style="--progress: 60%"><span></span></span>
+      </div>
+      <div class="field">
+        <label for="new-category">Название</label>
+        <input id="new-category" name="category-name" type="text" required aria-describedby="new-category-help new-category-error">
+        <p id="new-category-help" class="budget-note">До 40 символов</p>
+        <p id="new-category-error" class="error" role="alert" hidden></p>
+        <button id="select-existing-category" class="secondary" type="button" hidden>Выбрать существующую</button>
+      </div>
+      <fieldset class="category-color-fieldset">
+        <legend>Цвет</legend>
+        <div id="category-palette" class="color-palette"></div>
+        <p id="category-color-label" class="budget-note"></p>
+        <label class="custom-color-choice" for="category-color-custom">
+          <input id="category-color-custom" type="radio" name="category-color" value="custom">
+          <span>Свой цвет</span>
+        </label>
+        <div id="category-custom-color" class="form-grid" hidden>
+          <div class="field">
+            <label for="category-color-picker">Выбрать цвет</label>
+            <input id="category-color-picker" type="color" value="#1967D2">
+          </div>
+          <div class="field">
+            <label for="category-hex">HEX</label>
+            <input id="category-hex" type="text" value="#1967D2" spellcheck="false" autocapitalize="characters" aria-describedby="category-hex-help category-hex-error">
+            <p id="category-hex-help" class="budget-note">Например, #1967D2</p>
+            <p id="category-hex-error" class="error" role="alert" hidden></p>
+          </div>
+        </div>
+      </fieldset>
+      <p class="category-icon-note">Иконка: Метка</p>
+    </form>
     <div class="modal-actions">
       <button id="add-expense" type="submit" form="expense-form">Добавить</button>
+      <button id="save-category" type="submit" form="category-details" hidden>Создать</button>
     </div>
   </dialog>
   <dialog id="budget-dialog" class="modal" aria-labelledby="budget-dialog-title budget-category-name">
