@@ -17,10 +17,26 @@
   }
   function reset() {
     localStorage.removeItem("rashody");
+    document.querySelectorAll("dialog[open]").forEach((dialog) => dialog.close());
     data = { categories: [...initialCategories], expenses: [], budgets: [] };
+    selectedCategory = "";
     renderCategories();
     byId("reset-period").click();
   }
+  function period(from, to) {
+    if (!byId("period-dialog").open) {
+      byId("open-period").focus();
+      byId("open-period").click();
+    }
+    byId("period-from").value = from;
+    byId("period-to").value = to;
+    byId("period-form").requestSubmit();
+  }
+  function quickPeriod(days) {
+    byId("open-period").click();
+    document.querySelector(`[data-days="${days}"]`).click();
+  }
+  const chip = (category = "") => [...byId("category-filters").children].find((button) => button.dataset.category === category);
   function daysAgo(days) {
     const date = new Date();
     date.setDate(date.getDate() - days);
@@ -102,34 +118,27 @@
   [0, 6, 7, 13, 14, 29, 30].forEach((days) => add("100", "KZT", daysAgo(days)));
   const monthBeforeFilter = byId("month-total").textContent;
   for (const [days, count] of [[1, 1], [7, 2], [14, 4], [30, 6]]) {
-    document.querySelector(`[data-days="${days}"]`).click();
-    check(byId("period-from").value === daysAgo(days - 1) && byId("period-to").value === localDate() &&
+    quickPeriod(days);
+    check(appliedPeriod.from === daysAgo(days - 1) && appliedPeriod.to === localDate() && !byId("period-dialog").open &&
       rows().length === count && byId("period-total").textContent === `${count * 100} ₸` &&
       byId("month-total").textContent === monthBeforeFilter, `Период ${days} дней с обеими границами`);
   }
-  byId("period-from").value = daysAgo(14);
-  byId("period-to").value = daysAgo(6);
-  byId("period-to").dispatchEvent(new Event("change"));
+  period(daysAgo(14), daysAgo(6));
   check(rows().length === 4 && byId("period-total").textContent === "400 ₸", "Произвольный период включает обе границы");
-  byId("period-from").value = "";
-  byId("period-from").dispatchEvent(new Event("change"));
+  period("", daysAgo(6));
   check(rows().length === 6, "Период с одной границей");
-  byId("period-from").value = localDate();
-  byId("period-from").dispatchEvent(new Event("change"));
-  check(!byId("period-error").hidden && byId("period-summary").hidden && rows().length === 7, "Обратный диапазон показывает ошибку и не фильтрует");
-  byId("period-from").value = "1900-01-01";
-  byId("period-to").value = "1900-01-02";
-  byId("period-to").dispatchEvent(new Event("change"));
-  check(rows().length === 0 && byId("empty-state").textContent === "За этот период трат нет" &&
+  period(localDate(), daysAgo(6));
+  check(!byId("period-error").hidden && byId("period-dialog").open && rows().length === 6 &&
+    appliedPeriod.from === "" && appliedPeriod.to === daysAgo(6), "Обратный диапазон не меняет применённый период и остаётся в окне");
+  period("1900-01-01", "1900-01-02");
+  check(rows().length === 0 && byId("empty-state").textContent === "По выбранным фильтрам трат нет" &&
     byId("period-total").textContent === "0 ₸" && byId("period-total-usd").textContent === "0,00 $", "Пустой период и нулевые итоги");
   byId("reset-period").click();
-  check(rows().length === 7 && !byId("period-from").value && !byId("period-to").value, "Сброс периода");
+  check(rows().length === 7 && !appliedPeriod.from && !appliedPeriod.to, "Сброс периода");
   add("12,50", "USD", daysAgo(14));
   add("0.10", "USD", daysAgo(6));
   add("100", "USD", daysAgo(30));
-  byId("period-from").value = daysAgo(14);
-  byId("period-to").value = daysAgo(6);
-  byId("period-to").dispatchEvent(new Event("change"));
+  period(daysAgo(14), daysAgo(6));
   check(byId("period-total").textContent === "400 ₸" && byId("period-total-usd").textContent === "12,60 $", "Итоги периода считают валюты отдельно");
   byId("reset-period").click();
 
@@ -243,9 +252,7 @@
   check(spentText() === "Потрачено: 21 000 ₸" && remainingText() === "Перерасход: 1 000 ₸", "Другая валюта, месяц, год и категория не меняют расчёт категории");
   check(byId("budget-list").children[1].querySelector(".budget-ratio").textContent.startsWith("300 ₸ /") &&
     byId("budget-list").children[1].querySelector(".budget-remaining").textContent === "Осталось: —", "Расходы категории без лимита тоже видны");
-  byId("period-from").value = "1900-01-01";
-  byId("period-to").value = "1900-01-02";
-  byId("period-to").dispatchEvent(new Event("change"));
+  period("1900-01-01", "1900-01-02");
   check(rows().length === 0 && spentText() === "Потрачено: 21 000 ₸" && remainingText() === "Перерасход: 1 000 ₸", "Фильтр списка не меняет расходы и перерасход категории");
   byId("reset-period").click();
   limit("30 000");
@@ -276,9 +283,7 @@
   add("12,50", "USD");
   add("100", "KZT", localDate(previousMonth));
   add("100", "KZT", `${new Date().getFullYear() - 1}${localDate().slice(4)}`);
-  byId("period-from").value = "1900-01-01";
-  byId("period-to").value = "1900-01-02";
-  byId("period-to").dispatchEvent(new Event("change"));
+  period("1900-01-01", "1900-01-02");
   check(rows().length === 0 && byId("budget-overview").textContent === overview, "Общий бюджет не зависит от валюты, другого месяца, года и фильтра периода");
   byId("reset-period").click();
   byId("new-category").value = "Здоровье";
@@ -328,6 +333,64 @@
   dialog.dispatchEvent(new PointerEvent("pointerdown", { clientX: -1, clientY: -1 }));
   dialog.dispatchEvent(new MouseEvent("click", { clientX: -1, clientY: -1 }));
   check(!dialog.open && data.budgets[0].amount === 100, "Нажатие фона закрывает окно без сохранения");
+  reset();
+  check(byId("category-filters").children.length === 4 && chip().getAttribute("aria-pressed") === "true", "Все и каждая исходная категория доступны в чипах");
+  add("5000");
+  add("2500", "KZT", daysAgo(6), "Транспорт");
+  add("12000", "KZT", daysAgo(14), "Дом");
+  add("12.50", "USD", daysAgo(6), "Транспорт");
+  add("0.10", "USD");
+  const unchangedBudget = byId("budget-overview").textContent;
+  chip("Транспорт").click();
+  check(rows().length === 2 && byId("period-total").textContent === "2 500 ₸" &&
+    byId("period-total-usd").textContent === "12,50 $" && !byId("period-summary").hidden, "Категория сразу фильтрует записи и оба итога");
+  check(chip("Транспорт").getAttribute("aria-pressed") === "true" && chip().getAttribute("aria-pressed") === "false" &&
+    chip("Транспорт").style.getPropertyValue("--category-color") === byId("budget-list").children[1].style.getPropertyValue("--category-color"), "Выбрана одна категория, цвет совпадает с бюджетом");
+  quickPeriod(7);
+  check(rows().length === 2 && byId("period-label").textContent === "7 дней" && !byId("reset-period").hidden, "Быстрый период сохраняет категорию и показывает сброс");
+  chip("Транспорт").click();
+  check(rows().length === 2 && appliedPeriod.from === daysAgo(6), "Повторный выбор категории сохраняет период");
+  period(daysAgo(6), daysAgo(6));
+  check(rows().length === 2 && byId("open-period").getAttribute("aria-label").includes(daysAgo(6).split("-").reverse().join(".")), "Один день включает обе границы и имеет полную доступную подпись");
+  chip().click();
+  check(rows().length === 2 && appliedPeriod.from === daysAgo(6), "Все возвращает категории и сохраняет даты");
+  chip("Еда").click();
+  check(rows().length === 0 && byId("period-total").textContent === "0 ₸" && byId("period-usd").hidden, "Пересечение категории и даты может быть пустым, нулевые доллары скрыты");
+  byId("reset-period").click();
+  check(selectedCategory === "Еда" && rows().length === 2 && byId("reset-period").hidden && document.activeElement === byId("open-period"), "Один сброс очищает только даты и сохраняет доступный фокус");
+  byId("open-period").click();
+  byId("period-from").value = "1900-01-01";
+  byId("period-to").value = "1900-01-02";
+  byId("period-to").dispatchEvent(new Event("change"));
+  render();
+  check(rows().length === 2 && !appliedPeriod.from, "Ввод дат и перерисовка не применяют черновик");
+  byId("period-dialog").querySelector("[data-close]").click();
+  byId("open-period").click();
+  check(!byId("period-from").value && !byId("period-to").value && byId("period-error").hidden, "Отмена забывает черновик дат и ошибку");
+  byId("period-dialog").close();
+  period(daysAgo(6), "");
+  check(rows().length === 2 && byId("period-label").textContent.startsWith("С "), "Диапазон с одной начальной границей");
+  quickPeriod(0);
+  check(selectedCategory === "Еда" && rows().length === 2 && !appliedPeriod.from && !appliedPeriod.to, "Все даты в окне сохраняет категорию");
+  check(byId("budget-overview").textContent === unchangedBudget, "Все сочетания категории и периода не меняют бюджет месяца");
+  const thisYear = String(new Date().getFullYear());
+  const lastYear = String(new Date().getFullYear() - 1);
+  period(`${lastYear}-12-31`, `${thisYear}-01-01`);
+  check(byId("period-label").textContent.includes(lastYear) && byId("period-label").textContent.includes(thisYear), "Диапазон через новый год показывает оба года");
+  period(`${thisYear}-11-10`, `${thisYear}-11-16`);
+  check(byId("period-label").textContent.startsWith("10–16"), "Дни одного месяца показаны компактно");
+  quickPeriod(0);
+  const longCategory = "Очень длинная категория <b>для проверки переноса</b>";
+  byId("new-category").value = longCategory;
+  byId("save-category").click();
+  check(chip(longCategory).textContent === longCategory && !chip(longCategory).querySelector("b"), "Новая длинная категория добавляется в чипы как текст");
+  chip(longCategory).click();
+  add("150", "KZT", localDate(), longCategory);
+  check(rows().length === 1 && byId("period-total").textContent === "150 ₸" &&
+    chip(longCategory).style.getPropertyValue("--category-color") === rows()[0].style.getPropertyValue("--category-color"), "Новая категория фильтрует траты и сохраняет цвет");
+  chip().click();
+  check(byId("period-summary").hidden && rows().length === 6, "Возврат ко всем записям убирает дополнительный итог");
+  check(!Object.keys(JSON.parse(localStorage.getItem("rashody"))).some((key) => /period|filter|selected/i.test(key)), "Фильтры не сохраняются в localStorage");
   reset();
   const legacy = JSON.stringify({ categories: [...initialCategories], expenses: [{ amount: 5000, category: "Еда", date: localDate(), comment: "Старая запись" }] });
   localStorage.setItem("rashody", legacy);

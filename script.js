@@ -7,6 +7,8 @@ const expenseForm = byId("expense-form");
 let data = { categories: [...initialCategories], expenses: [], budgets: [] };
 let storageReadable = true;
 let budgetsExpanded = false;
+let selectedCategory = "";
+let appliedPeriod = { from: "", to: "", label: "Все даты" };
 const categoryColors = [
   ["#1967D2", "#E8F0FE"], ["#137333", "#E6F4EA"], ["#A85B00", "#FEF7E0"],
   ["#8430CE", "#F3E8FD"], ["#00757D", "#E0F2F1"]
@@ -33,7 +35,7 @@ function setupDialog(dialog) {
   let opener;
   let scrollY = 0;
   dialog.addEventListener("close", () => {
-    if (dialog.open) return;
+    if (document.querySelector("dialog[open]")) return;
     document.body.style.position = "";
     document.body.style.top = "";
     document.body.style.width = "";
@@ -100,6 +102,7 @@ function setupDialog(dialog) {
   };
 }
 const showBudgetDialog = setupDialog(byId("budget-dialog"));
+const showPeriodDialog = setupDialog(byId("period-dialog"));
 
 function openBudget(category) {
   const form = byId("budget-form");
@@ -322,6 +325,27 @@ byId("remove-budget").addEventListener("click", () => updateBudget(byId("budget-
 function renderCategories(selected = byId("category").value) {
   byId("category").replaceChildren(...data.categories.map((name) => new Option(name, name)));
   byId("category").value = data.categories.includes(selected) ? selected : data.categories[0];
+  byId("category-filters").replaceChildren(...["", ...data.categories].map((category) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "category-chip";
+    button.dataset.category = category;
+    const [color, tint] = category ? categoryColors[data.categories.indexOf(category) % categoryColors.length] : ["#7C203A", "#F8EDF1"];
+    button.style.setProperty("--category-color", color);
+    button.style.setProperty("--category-tint", tint);
+    const check = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    check.setAttribute("viewBox", "0 0 24 24");
+    check.setAttribute("aria-hidden", "true");
+    check.innerHTML = '<path d="m5 12 4 4L19 6"/>';
+    button.append(check, document.createTextNode(category || "Все"));
+    button.setAttribute("aria-pressed", String(selectedCategory === category));
+    button.addEventListener("click", () => {
+      selectedCategory = category;
+      render();
+      button.scrollIntoView({ block: "nearest", inline: "nearest" });
+    });
+    return button;
+  }));
 }
 
 function render() {
@@ -329,24 +353,37 @@ function render() {
   renderTotals("month", data.expenses.filter((expense) => expense.date.slice(0, 7) === today.slice(0, 7)));
   renderBudgets();
 
-  const from = byId("period-from").value;
-  const to = byId("period-to").value;
-  const invalidFrom = Boolean(from) && !validDate(from);
-  const invalidTo = Boolean(to) && !validDate(to);
-  const reversed = from && to && from > to;
-  const invalidPeriod = invalidFrom || invalidTo || reversed;
-  byId("period-error").textContent = reversed ? "Дата «С» должна быть не позже даты «По»." : "Укажите корректные даты периода.";
-  byId("period-error").hidden = !invalidPeriod;
-  byId("period-from").setAttribute("aria-invalid", String(Boolean(invalidFrom || reversed)));
-  byId("period-to").setAttribute("aria-invalid", String(Boolean(invalidTo || reversed)));
-  byId("period-summary").hidden = invalidPeriod || !(from || to);
+  const { from, to, label } = appliedPeriod;
+  const dateLabel = (date) => date.split("-").reverse().join(".");
+  const periodText = from && to ? from === to ? dateLabel(from) : `${dateLabel(from)}–${dateLabel(to)}`
+    : from ? `С ${dateLabel(from)}` : to ? `По ${dateLabel(to)}` : "Все даты";
+  const crossesYear = from && to && from.slice(0, 4) !== to.slice(0, 4);
+  const shortDate = (date) => new Date(`${date}T12:00:00`).toLocaleDateString("ru-RU", {
+    day: "numeric", month: "short", ...(!crossesYear && date.slice(0, 4) === today.slice(0, 4) ? {} : { year: "numeric" })
+  }).replace(/ г\.$/, "");
+  let shortPeriod = "Все даты";
+  if (from && to) {
+    shortPeriod = from === to ? shortDate(from) : from.slice(0, 7) === to.slice(0, 7)
+      ? `${Number(from.slice(8))}–${shortDate(to)}` : `${shortDate(from)} – ${shortDate(to)}`;
+  } else if (from) shortPeriod = `С ${shortDate(from)}`;
+  else if (to) shortPeriod = `По ${shortDate(to)}`;
+  const periodLabel = label && (!to || to === today) ? label : shortPeriod;
+  byId("period-label").textContent = periodLabel;
+  byId("open-period").setAttribute("aria-label", `Период трат: ${periodLabel}${periodLabel === periodText ? "" : `; ${periodText}`}`);
+  byId("open-period").title = periodText;
+  byId("reset-period").hidden = !(from || to);
+  byId("period-summary").hidden = !(from || to || selectedCategory);
+  byId("category-filters").querySelectorAll("button").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.category === selectedCategory));
+  });
 
-  const expenses = data.expenses.filter((expense) => invalidPeriod ||
-    ((!from || expense.date >= from) && (!to || expense.date <= to)))
+  const expenses = data.expenses.filter((expense) => (!selectedCategory || expense.category === selectedCategory) &&
+    (!from || expense.date >= from) && (!to || expense.date <= to))
     .sort((a, b) => b.date.localeCompare(a.date));
   renderTotals("period", expenses);
+  byId("period-usd").hidden = !expenses.some((expense) => expense.currency === "USD");
   byId("empty-state").hidden = expenses.length > 0;
-  byId("empty-state").textContent = data.expenses.length ? "За этот период трат нет" : "Пока нет трат";
+  byId("empty-state").textContent = data.expenses.length ? "По выбранным фильтрам трат нет" : "Пока нет трат";
   byId("expense-list").replaceChildren(...expenses.map((expense) => {
     const item = document.createElement("li");
     item.className = "expense";
@@ -434,22 +471,58 @@ byId("new-category").addEventListener("keydown", (event) => {
   }
 });
 
-byId("period-from").addEventListener("change", render);
-byId("period-to").addEventListener("change", render);
-byId("reset-period").addEventListener("click", () => {
-  byId("period-from").value = "";
-  byId("period-to").value = "";
+function periodError(message = "", invalidFrom = false, invalidTo = false) {
+  byId("period-error").textContent = message;
+  byId("period-error").hidden = !message;
+  byId("period-from").setAttribute("aria-invalid", String(invalidFrom));
+  byId("period-to").setAttribute("aria-invalid", String(invalidTo));
+}
+
+function applyPeriod(from, to, label = "") {
+  appliedPeriod = { from, to, label };
   render();
+  byId("period-dialog").close();
+}
+
+byId("open-period").addEventListener("click", () => {
+  byId("period-from").value = appliedPeriod.from;
+  byId("period-to").value = appliedPeriod.to;
+  periodError();
+  showPeriodDialog();
+});
+byId("period-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const from = byId("period-from").value;
+  const to = byId("period-to").value;
+  const invalidFrom = byId("period-from").validity.badInput || Boolean(from) && !validDate(from);
+  const invalidTo = byId("period-to").validity.badInput || Boolean(to) && !validDate(to);
+  const reversed = from && to && from > to;
+  if (invalidFrom || invalidTo || reversed) {
+    periodError(reversed ? "Дата «С» должна быть не позже даты «По»." : "Укажите корректные даты периода.",
+      Boolean(invalidFrom || reversed), Boolean(invalidTo || reversed));
+    byId(invalidTo && !invalidFrom && !reversed ? "period-to" : "period-from").focus();
+    return;
+  }
+  periodError();
+  applyPeriod(from, to);
+});
+byId("reset-period").addEventListener("click", () => {
+  appliedPeriod = { from: "", to: "", label: "Все даты" };
+  render();
+  byId("open-period").focus({ preventScroll: true });
 });
 
 document.querySelectorAll("[data-days]").forEach((button) => {
   button.addEventListener("click", () => {
+    const days = Number(button.dataset.days);
+    if (!days) {
+      applyPeriod("", "", "Все даты");
+      return;
+    }
     const end = new Date();
     const start = new Date(end);
-    start.setDate(start.getDate() - Number(button.dataset.days) + 1);
-    byId("period-from").value = localDate(start);
-    byId("period-to").value = localDate(end);
-    render();
+    start.setDate(start.getDate() - days + 1);
+    applyPeriod(localDate(start), localDate(end), button.textContent);
   });
 });
 
