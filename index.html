@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
   <title>Учёт расходов</title>
   <link rel="stylesheet" href="styles.css">
   <script src="script.js" defer></script>
@@ -46,58 +46,6 @@
     </template>
 
     <div class="activity-column">
-    <section class="entry-section" aria-labelledby="entry-heading">
-      <h2 id="entry-heading">Добавить трату</h2>
-      <form id="expense-form" novalidate>
-        <div class="form-grid">
-          <div class="amount-fields">
-            <div class="field">
-              <label for="amount">Сумма</label>
-              <input id="amount" name="amount" type="text" inputmode="numeric" placeholder="5 000" required aria-describedby="amount-error">
-              <p id="amount-error" class="error" hidden></p>
-            </div>
-            <div class="field">
-              <label for="currency">Валюта</label>
-              <select id="currency" name="currency" aria-describedby="currency-error">
-                <option value="KZT" aria-label="Тенге">₸</option>
-                <option value="USD" aria-label="Доллары США">$</option>
-              </select>
-              <p id="currency-error" class="error" hidden></p>
-            </div>
-          </div>
-          <div class="field">
-            <label for="category">Категория</label>
-            <select id="category" name="category" required aria-describedby="category-error"></select>
-            <p id="category-error" class="error" hidden></p>
-          </div>
-          <div class="field">
-            <label for="date">Дата</label>
-            <input id="date" name="date" type="date" required aria-describedby="date-error">
-            <p id="date-error" class="error" hidden></p>
-          </div>
-        </div>
-        <details id="category-details">
-          <summary>Добавить категорию</summary>
-          <div class="category-entry">
-            <div class="field">
-              <label for="new-category">Название категории</label>
-              <input id="new-category" type="text" aria-describedby="new-category-error">
-              <p id="new-category-error" class="error" hidden></p>
-            </div>
-            <button id="save-category" type="button" class="secondary">Сохранить категорию</button>
-          </div>
-        </details>
-        <div class="field comment-field">
-          <label for="comment">Комментарий <span class="optional">необязательно</span></label>
-          <textarea id="comment" name="comment" rows="2" placeholder="На что потратили?"></textarea>
-        </div>
-        <div class="form-footer">
-          <button type="submit">Добавить</button>
-          <p id="save-status" role="status"></p>
-        </div>
-      </form>
-    </section>
-
     <section class="history-section" aria-labelledby="history-heading">
       <div class="section-header">
         <h2 id="history-heading">Список трат</h2>
@@ -108,6 +56,9 @@
           </button>
           <button id="reset-period" class="icon-button" type="button" aria-label="Сбросить даты" hidden>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg>
+          </button>
+          <button id="open-expense" class="fab" type="button" aria-label="Добавить трату" aria-haspopup="dialog" aria-controls="expense-dialog">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
           </button>
         </div>
       </div>
@@ -122,26 +73,90 @@
     <footer>Данные сохраняются в этом браузере.</footer>
     <noscript><p class="error">Включите JavaScript, чтобы добавлять и просматривать траты.</p></noscript>
   </main>
-  <dialog id="budget-dialog" class="modal" aria-labelledby="budget-dialog-title">
+  <div id="save-notice" class="save-notice" hidden>
+    <p id="save-status" role="status"></p>
+    <button id="show-expense" class="secondary" type="button" hidden>Показать</button>
+  </div>
+  <dialog id="expense-dialog" class="modal" aria-labelledby="entry-heading">
     <header class="modal-header">
       <span class="sheet-handle" aria-hidden="true"></span>
-      <h2 id="budget-dialog-title"></h2>
+      <h2 id="entry-heading">Добавить трату</h2>
+      <button type="button" class="icon-button" data-close aria-label="Закрыть">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg>
+      </button>
+    </header>
+    <form id="expense-form" autocomplete="off" novalidate>
+      <p id="expense-storage-error" class="error" role="alert" hidden></p>
+      <div class="field">
+        <label for="amount">Сумма</label>
+        <div class="amount-input">
+          <input id="amount" name="amount" type="text" inputmode="numeric" placeholder="5 000" required aria-describedby="amount-error" autofocus>
+          <span id="amount-symbol" aria-hidden="true">₸</span>
+        </div>
+        <p id="amount-error" class="error" hidden></p>
+      </div>
+      <div class="field entry-category-field">
+        <p id="entry-category-label">Категория: <output id="entry-category-name"></output></p>
+        <input id="category" name="category" type="hidden">
+        <div id="entry-categories" class="category-chips" role="group" aria-labelledby="entry-category-label" aria-describedby="category-error"></div>
+        <p id="category-error" class="error" hidden></p>
+      </div>
+      <div id="category-details" class="category-entry" hidden>
+        <div class="field">
+          <label for="new-category">Название категории</label>
+          <input id="new-category" type="text" aria-describedby="new-category-error">
+          <p id="new-category-error" class="error" hidden></p>
+        </div>
+        <button id="save-category" type="button" class="secondary">Сохранить</button>
+      </div>
+      <details id="expense-details">
+        <summary><span>Дополнительно</span><span id="entry-meta"></span></summary>
+        <div class="form-grid">
+          <div class="field">
+            <label for="date">Дата</label>
+            <input id="date" name="date" type="date" required aria-describedby="date-error">
+            <p id="date-error" class="error" hidden></p>
+          </div>
+          <div class="field">
+            <label for="currency">Валюта</label>
+            <select id="currency" name="currency" aria-describedby="currency-error">
+              <option value="KZT">₸ — тенге</option>
+              <option value="USD">$ — доллары</option>
+            </select>
+            <p id="currency-error" class="error" hidden></p>
+          </div>
+        </div>
+        <div class="field comment-field">
+          <label for="comment">Комментарий <span class="optional">необязательно</span></label>
+          <textarea id="comment" name="comment" rows="2" placeholder="На что потратили?"></textarea>
+        </div>
+      </details>
+    </form>
+    <div class="modal-actions">
+      <button id="add-expense" type="submit" form="expense-form">Добавить</button>
+    </div>
+  </dialog>
+  <dialog id="budget-dialog" class="modal" aria-labelledby="budget-dialog-title budget-category-name">
+    <header class="modal-header">
+      <span class="sheet-handle" aria-hidden="true"></span>
+      <h2 id="budget-dialog-title">Лимит категории</h2>
       <button type="button" class="icon-button" data-close aria-label="Закрыть">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg>
       </button>
     </header>
     <form id="budget-form" novalidate>
+      <p id="budget-category-name"></p>
       <p id="budget-current" class="budget-note"></p>
       <div class="field">
         <label for="budget-limit">Лимит на месяц, ₸</label>
         <input id="budget-limit" type="text" inputmode="numeric" placeholder="20 000" required aria-describedby="budget-limit-error" autofocus>
         <p id="budget-limit-error" class="error" role="alert" hidden></p>
       </div>
-      <div class="budget-actions">
-        <button type="submit">Сохранить</button>
-        <button id="remove-budget" type="button" class="secondary">Убрать лимит</button>
-      </div>
+      <button id="remove-budget" type="button" class="secondary">Убрать лимит</button>
     </form>
+    <div class="modal-actions">
+      <button id="budget-save" type="submit" form="budget-form">Сохранить</button>
+    </div>
   </dialog>
   <dialog id="period-dialog" class="modal" aria-labelledby="period-dialog-title">
     <header class="modal-header">
@@ -171,8 +186,10 @@
         </div>
       </div>
       <p id="period-error" class="error" role="alert" hidden></p>
-      <button id="apply-period" type="submit">Применить</button>
     </form>
+    <div class="modal-actions">
+      <button id="apply-period" type="submit" form="period-form">Применить</button>
+    </div>
   </dialog>
 </body>
 </html>

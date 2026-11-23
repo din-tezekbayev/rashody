@@ -7,6 +7,7 @@ const expenseForm = byId("expense-form");
 let data = { categories: [...initialCategories], expenses: [], budgets: [] };
 let storageReadable = true;
 let budgetsExpanded = false;
+let expenseDraft = false;
 let selectedCategory = "";
 let appliedPeriod = { from: "", to: "", label: "Все даты" };
 const categoryColors = [
@@ -92,7 +93,7 @@ function setupDialog(dialog) {
   header.addEventListener("pointerup", endSwipe);
   header.addEventListener("pointercancel", endSwipe);
   return () => {
-    if (dialog.open) return;
+    if (document.querySelector("dialog[open]")) return;
     opener = document.activeElement;
     scrollY = window.scrollY;
     dialog.showModal();
@@ -103,18 +104,66 @@ function setupDialog(dialog) {
 }
 const showBudgetDialog = setupDialog(byId("budget-dialog"));
 const showPeriodDialog = setupDialog(byId("period-dialog"));
+const showExpenseDialog = setupDialog(byId("expense-dialog"));
+
+if (window.visualViewport) {
+  const fitDialogs = () => {
+    document.documentElement.style.setProperty("--visible-height", `${visualViewport.height}px`);
+    document.documentElement.style.setProperty("--viewport-top", `${visualViewport.offsetTop}px`);
+    requestAnimationFrame(() => {
+      const focused = document.activeElement;
+      if (focused.matches("input, select, textarea") && focused.closest("dialog[open]")) {
+        focused.scrollIntoView({ block: "nearest" });
+      }
+    });
+  };
+  visualViewport.addEventListener("resize", fitDialogs);
+  visualViewport.addEventListener("scroll", fitDialogs);
+  fitDialogs();
+}
+
+function updateExpenseForm() {
+  const currency = byId("currency").value;
+  byId("amount-symbol").textContent = currency === "USD" ? "$" : "₸";
+  byId("amount").inputMode = currency === "USD" ? "decimal" : "numeric";
+  byId("amount").placeholder = currency === "USD" ? "12,50" : "5 000";
+  byId("entry-meta").textContent = `${byId("date").value ? byId("date").value.split("-").reverse().join(".") : "Дата не выбрана"} · ${currency === "USD" ? "$" : "₸"}`;
+  byId("entry-category-name").textContent = byId("category").value || "Выберите категорию";
+  byId("entry-categories").querySelectorAll("[data-category]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.category === byId("category").value));
+  });
+}
+
+byId("open-expense").addEventListener("click", () => {
+  if (!storageReadable || document.querySelector("dialog[open]")) return;
+  if (!expenseDraft && selectedCategory) byId("category").value = selectedCategory;
+  byId("save-notice").hidden = true;
+  updateExpenseForm();
+  showExpenseDialog();
+  byId("amount").focus();
+});
+expenseForm.addEventListener("input", () => { expenseDraft = true; updateExpenseForm(); });
+expenseForm.addEventListener("change", () => { expenseDraft = true; updateExpenseForm(); });
+byId("show-expense").addEventListener("click", () => {
+  selectedCategory = "";
+  appliedPeriod = { from: "", to: "", label: "Все даты" };
+  byId("save-notice").hidden = true;
+  render();
+  byId("open-period").focus();
+});
 
 function openBudget(category) {
   const form = byId("budget-form");
   form.dataset.category = category;
   form.dataset.month = localDate().slice(0, 7);
   const amount = data.budgets.find((budget) => budget.month === form.dataset.month && budget.category === category)?.amount;
-  byId("budget-dialog-title").textContent = category;
+  byId("budget-category-name").textContent = category;
   byId("budget-current").textContent = `Текущий лимит: ${amount === undefined ? "Не задан" : money(amount, "KZT")}`;
   byId("budget-limit").value = amount === undefined ? "" : String(amount);
   fieldError("budget-limit", "");
   form.querySelectorAll("input, button").forEach((field) => { field.disabled = !storageReadable; });
   byId("remove-budget").disabled = !storageReadable || amount === undefined;
+  byId("budget-save").disabled = !storageReadable;
   showBudgetDialog();
   byId("budget-limit").focus();
 }
@@ -213,7 +262,7 @@ function load() {
     storageReadable = false;
     byId("storage-error").textContent = "Не удалось прочитать сохранённые данные. Они не изменены. Изменения недоступны: проверьте разрешение браузера на хранение данных или восстановите сохранённые записи.";
     byId("storage-error").hidden = false;
-    document.querySelectorAll("#expense-form input, #expense-form select, #expense-form textarea, #expense-form button, #budget-list button, #budget-form input, #budget-form button")
+    document.querySelectorAll("#expense-form input, #expense-form select, #expense-form textarea, #expense-form button, #budget-list button, #budget-form input, #budget-form button, #open-expense, #add-expense, #budget-save")
       .forEach((field) => { field.disabled = true; });
   }
 }
@@ -322,33 +371,61 @@ byId("budget-form").addEventListener("submit", (event) => {
 });
 byId("remove-budget").addEventListener("click", () => updateBudget(byId("budget-form"), true));
 
+function categoryChip(category, selected, onSelect) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "category-chip";
+  button.dataset.category = category;
+  const [color, tint] = category ? categoryColors[data.categories.indexOf(category) % categoryColors.length] : ["#7C203A", "#F8EDF1"];
+  button.style.setProperty("--category-color", color);
+  button.style.setProperty("--category-tint", tint);
+  const check = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  check.setAttribute("viewBox", "0 0 24 24");
+  check.setAttribute("aria-hidden", "true");
+  check.innerHTML = '<path d="m5 12 4 4L19 6"/>';
+  button.append(check, document.createTextNode(category || "Все"));
+  button.setAttribute("aria-pressed", String(selected));
+  button.addEventListener("click", () => {
+    onSelect();
+    button.scrollIntoView({ block: "nearest", inline: "nearest" });
+  });
+  return button;
+}
+
 function renderCategories(selected = byId("category").value) {
-  byId("category").replaceChildren(...data.categories.map((name) => new Option(name, name)));
   byId("category").value = data.categories.includes(selected) ? selected : data.categories[0];
-  byId("category-filters").replaceChildren(...["", ...data.categories].map((category) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "category-chip";
-    button.dataset.category = category;
-    const [color, tint] = category ? categoryColors[data.categories.indexOf(category) % categoryColors.length] : ["#7C203A", "#F8EDF1"];
-    button.style.setProperty("--category-color", color);
-    button.style.setProperty("--category-tint", tint);
-    const check = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    check.setAttribute("viewBox", "0 0 24 24");
-    check.setAttribute("aria-hidden", "true");
-    check.innerHTML = '<path d="m5 12 4 4L19 6"/>';
-    button.append(check, document.createTextNode(category || "Все"));
-    button.setAttribute("aria-pressed", String(selectedCategory === category));
-    button.addEventListener("click", () => {
-      selectedCategory = category;
-      render();
-      button.scrollIntoView({ block: "nearest", inline: "nearest" });
+  byId("category-filters").replaceChildren(...["", ...data.categories].map((category) =>
+    categoryChip(category, selectedCategory === category, () => { selectedCategory = category; render(); })));
+  byId("entry-categories").replaceChildren(...data.categories.map((category) => {
+    const button = categoryChip(category, byId("category").value === category, () => {
+      byId("category").value = category;
+      expenseDraft = true;
+      fieldError("category", "");
+      updateExpenseForm();
     });
+    button.disabled = !storageReadable;
     return button;
   }));
+  const addCategory = document.createElement("button");
+  addCategory.type = "button";
+  addCategory.className = "category-chip";
+  addCategory.id = "new-category-toggle";
+  addCategory.textContent = "Новая категория";
+  addCategory.setAttribute("aria-expanded", String(!byId("category-details").hidden));
+  addCategory.setAttribute("aria-controls", "category-details");
+  addCategory.disabled = !storageReadable;
+  addCategory.addEventListener("click", () => {
+    byId("category-details").hidden = !byId("category-details").hidden;
+    addCategory.setAttribute("aria-expanded", String(!byId("category-details").hidden));
+    if (!byId("category-details").hidden) byId("new-category").focus();
+  });
+  byId("entry-categories").append(addCategory);
+  updateExpenseForm();
 }
 
 function render() {
+  byId("open-expense").disabled = !storageReadable;
+  byId("add-expense").disabled = !storageReadable;
   const today = localDate();
   renderTotals("month", data.expenses.filter((expense) => expense.date.slice(0, 7) === today.slice(0, 7)));
   renderBudgets();
@@ -383,7 +460,7 @@ function render() {
   renderTotals("period", expenses);
   byId("period-usd").hidden = !expenses.some((expense) => expense.currency === "USD");
   byId("empty-state").hidden = expenses.length > 0;
-  byId("empty-state").textContent = data.expenses.length ? "По выбранным фильтрам трат нет" : "Пока нет трат";
+  byId("empty-state").textContent = data.expenses.length ? "По выбранным фильтрам трат нет" : "Пока нет трат. Нажмите +, чтобы добавить";
   byId("expense-list").replaceChildren(...expenses.map((expense) => {
     const item = document.createElement("li");
     item.className = "expense";
@@ -413,7 +490,8 @@ function render() {
 
 expenseForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  byId("save-status").textContent = "";
+  if (!byId("expense-dialog").open || !storageReadable) return;
+  byId("expense-storage-error").hidden = true;
   const currency = byId("currency").value;
   const amount = parseAmount(byId("amount").value, currency);
   const category = byId("category").value;
@@ -428,21 +506,36 @@ expenseForm.addEventListener("submit", (event) => {
   fieldError("date", validDate(date) ? "" : "Укажите корректную дату.");
   const firstInvalid = expenseForm.querySelector('[aria-invalid="true"]:not(#new-category)');
   if (firstInvalid) {
-    firstInvalid.focus();
+    if (["date", "currency"].includes(firstInvalid.id)) byId("expense-details").open = true;
+    if (firstInvalid.id === "category") byId("entry-categories").querySelector("button").focus();
+    else firstInvalid.focus();
     return;
   }
   const expense = { amount, currency, category, date, comment: byId("comment").value.trim() };
-  if (!save({ ...data, expenses: [expense, ...data.expenses] })) return;
+  if (!save({ ...data, expenses: [expense, ...data.expenses] })) {
+    byId("expense-storage-error").textContent = byId("storage-error").textContent;
+    byId("expense-storage-error").hidden = false;
+    byId("expense-storage-error").scrollIntoView({ block: "nearest" });
+    return;
+  }
   byId("amount").value = "";
   byId("comment").value = "";
+  expenseDraft = false;
+  byId("expense-details").open = false;
+  byId("category-details").hidden = true;
+  byId("new-category-toggle").setAttribute("aria-expanded", "false");
+  updateExpenseForm();
   render();
-  byId("save-status").textContent = "Трата добавлена";
-  byId("amount").focus();
+  const hiddenByFilters = selectedCategory && category !== selectedCategory ||
+    appliedPeriod.from && date < appliedPeriod.from || appliedPeriod.to && date > appliedPeriod.to;
+  byId("save-status").textContent = hiddenByFilters ? "Трата добавлена. Скрыта фильтрами." : "Трата добавлена";
+  byId("show-expense").hidden = !hiddenByFilters;
+  byId("save-notice").hidden = false;
+  byId("expense-dialog").close();
 });
 
 byId("currency").addEventListener("change", () => {
-  byId("amount").inputMode = byId("currency").value === "USD" ? "decimal" : "numeric";
-  byId("amount").placeholder = byId("currency").value === "USD" ? "12,50" : "5 000";
+  updateExpenseForm();
   fieldError("amount", "");
   fieldError("currency", "");
 });
@@ -455,13 +548,18 @@ byId("save-category").addEventListener("click", () => {
     return;
   }
   const existing = data.categories.find((category) => category.toLocaleLowerCase("ru-RU") === name.toLocaleLowerCase("ru-RU"));
-  if (!existing && !save({ ...data, categories: [...data.categories, name] })) return;
+  if (!existing && !save({ ...data, categories: [...data.categories, name] })) {
+    fieldError("new-category", byId("storage-error").textContent);
+    return;
+  }
+  byId("category-details").hidden = true;
+  expenseDraft = true;
   renderCategories(existing || name);
   renderBudgets();
   fieldError("category", "");
   byId("new-category").value = "";
-  byId("category-details").open = false;
-  byId("category").focus();
+  byId("new-category-toggle").setAttribute("aria-expanded", "false");
+  byId("amount").focus();
 });
 
 byId("new-category").addEventListener("keydown", (event) => {
@@ -529,6 +627,7 @@ document.querySelectorAll("[data-days]").forEach((button) => {
 load();
 renderCategories();
 byId("date").value = localDate();
+updateExpenseForm();
 render();
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) render();
