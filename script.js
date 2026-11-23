@@ -406,22 +406,17 @@ function renderCategories(selected = byId("category").value) {
     button.disabled = !storageReadable;
     return button;
   }));
-  const addCategory = document.createElement("button");
-  addCategory.type = "button";
-  addCategory.className = "category-chip";
-  addCategory.id = "new-category-toggle";
-  addCategory.textContent = "Новая категория";
-  addCategory.setAttribute("aria-expanded", String(!byId("category-details").hidden));
-  addCategory.setAttribute("aria-controls", "category-details");
-  addCategory.disabled = !storageReadable;
-  addCategory.addEventListener("click", () => {
-    byId("category-details").hidden = !byId("category-details").hidden;
-    addCategory.setAttribute("aria-expanded", String(!byId("category-details").hidden));
-    if (!byId("category-details").hidden) byId("new-category").focus();
-  });
-  byId("entry-categories").append(addCategory);
+  byId("new-category-toggle").setAttribute("aria-expanded", String(!byId("category-details").hidden));
+  byId("new-category-toggle").disabled = !storageReadable;
   updateExpenseForm();
 }
+
+byId("new-category-toggle").addEventListener("click", () => {
+  const details = byId("category-details");
+  details.hidden = !details.hidden;
+  byId("new-category-toggle").setAttribute("aria-expanded", String(!details.hidden));
+  if (!details.hidden) byId("new-category").focus();
+});
 
 function render() {
   byId("open-expense").disabled = !storageReadable;
