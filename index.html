@@ -78,6 +78,29 @@
       </form>
     </section>
 
+    <section class="budget-section" aria-labelledby="budget-heading">
+      <h2 id="budget-heading">Бюджет месяца</h2>
+      <p id="budget-month"></p>
+      <p class="budget-note">Бюджет только в ₸</p>
+      <div id="budget-list"></div>
+      <p id="budget-status" role="status"></p>
+    </section>
+    <template id="budget-row">
+      <form class="budget-row" novalidate>
+        <h3></h3>
+        <p class="budget-saved"></p>
+        <div class="field">
+          <label>Лимит на месяц, ₸</label>
+          <input type="text" inputmode="numeric" placeholder="20 000" required>
+          <p class="error" hidden></p>
+        </div>
+        <div class="budget-actions">
+          <button type="submit">Сохранить</button>
+          <button type="button" class="secondary">Убрать лимит</button>
+        </div>
+      </form>
+    </template>
+
     <section class="history-section" aria-labelledby="history-heading">
       <div class="section-header">
         <h2 id="history-heading">Список трат</h2>

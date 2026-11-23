@@ -17,7 +17,7 @@
   }
   function reset() {
     localStorage.removeItem("rashody");
-    data = { categories: [...initialCategories], expenses: [] };
+    data = { categories: [...initialCategories], expenses: [], budgets: [] };
     renderCategories();
     byId("reset-period").click();
   }
@@ -133,12 +133,111 @@
   check(byId("period-total").textContent === "400 ₸" && byId("period-total-usd").textContent === "12,60 $", "Итоги периода считают валюты отдельно");
   byId("reset-period").click();
 
+  const budgetForm = () => byId("budget-list").firstElementChild;
+  function limit(value, form = budgetForm()) {
+    form.querySelector("input").value = value;
+    form.requestSubmit();
+  }
+  check(byId("budget-list").children.length === data.categories.length &&
+    budgetForm().querySelector(".budget-saved").textContent === "Лимит: Не задан", "Все категории показаны без лимитов");
+  limit("20 000");
+  check(data.budgets[0].amount === 20000 && budgetForm().textContent.includes("20 000 ₸"), "Сохранение лимита с пробелами");
+  limit("25 000");
+  const savedBudget = localStorage.getItem("rashody");
+  check(data.budgets.length === 1 && data.budgets[0].amount === 25000, "Изменение заменяет лимит без дубликата");
+  for (const value of ["", "0", "-1", "12,5", "12.50", "abc", "NaN", "Infinity", "1e3", "9007199254740992"]) {
+    limit(value);
+    check(localStorage.getItem("rashody") === savedBudget && budgetForm().querySelector("input").value === value &&
+      !budgetForm().querySelector(".error").hidden, `Неверный лимит не сохраняется: ${value}`);
+  }
+  render();
+  check(budgetForm().querySelector("input").value === "9007199254740992", "Перерисовка не стирает несохранённый ввод лимита");
+  try {
+    Storage.prototype.setItem = () => { throw new Error("Storage unavailable"); };
+    limit("30 000");
+    check(data.budgets[0].amount === 25000 && budgetForm().querySelector("input").value === "30 000" &&
+      !byId("storage-error").hidden, "Отказ записи лимита сохраняет старое значение и введённое");
+    budgetForm().querySelector('button[type="button"]').click();
+    check(data.budgets[0].amount === 25000, "Отказ удаления лимита не меняет данные");
+  } finally {
+    Storage.prototype.setItem = originalSet;
+  }
+  check(localStorage.getItem("rashody") === savedBudget, "Ошибка бюджета не меняет сохранённые траты и лимиты");
+  budgetForm().querySelector('button[type="button"]').click();
+  check(data.budgets.length === 0 && budgetForm().querySelector("input").value === "" &&
+    budgetForm().textContent.includes("Не задан") && data.expenses.length === 10, "Удаление лимита сохраняет траты");
+  limit(String(Number.MAX_SAFE_INTEGER));
+  limit("1", byId("budget-list").children[1]);
+  check(data.budgets.length === 1 && !byId("budget-list").children[1].querySelector(".error").hidden, "Переполнение суммы лимитов отклоняется");
+  limit("20 000");
+  load();
+  render();
+  check(data.budgets[0].amount === 20000 && budgetForm().textContent.includes("20 000 ₸"), "Лимит читается из localStorage");
+  const otherMonth = localDate(previousMonth).slice(0, 7);
+  data.budgets.push({ month: otherMonth, category: "Еда", amount: 9000 });
+  limit("25 000");
+  check(data.budgets.some((budget) => budget.month === otherMonth && budget.amount === 9000), "Изменение лимита сохраняет бюджет другого месяца");
+  const currentMonth = localDate().slice(0, 7);
+  budgetForm().dataset.month = otherMonth;
+  byId("budget-list").dataset.month = otherMonth;
+  limit("1");
+  check(!data.budgets.some((budget) => budget.month === currentMonth && budget.amount === 1) &&
+    byId("budget-status").textContent.includes("новый месяц"), "Старая форма не записывает лимит в другой месяц");
+  byId("budget-list").dataset.month = "";
+  renderBudgets();
+  byId("new-category").value = "<b>Бюджет</b>";
+  byId("save-category").click();
+  check(byId("budget-list").lastElementChild.textContent.includes("<b>Бюджет</b>") &&
+    byId("budget-list").lastElementChild.textContent.includes("Не задан") && !byId("budget-list").querySelector("b"), "Новая категория без лимита, HTML показан текстом");
+  const originalDate = Date;
+  const nextMonth = new Date();
+  nextMonth.setMonth(nextMonth.getMonth() + 1, 1);
+  try {
+    window.Date = class extends originalDate {
+      constructor(...args) { super(...(args.length ? args : [nextMonth.getTime()])); }
+    };
+    document.dispatchEvent(new Event("visibilitychange"));
+    check(budgetForm().textContent.includes("Не задан") && byId("budget-month").textContent ===
+      nextMonth.toLocaleDateString("ru-RU", { month: "long", year: "numeric" }), "Новый месяц показан без переноса лимитов");
+    limit("7 000");
+    check(data.budgets.some((budget) => budget.month === currentMonth && budget.amount === 25000) &&
+      data.budgets.some((budget) => budget.month === localDate().slice(0, 7) && budget.amount === 7000), "Лимиты разных месяцев хранятся отдельно");
+  } finally {
+    window.Date = originalDate;
+    render();
+  }
+  check(budgetForm().textContent.includes("25 000 ₸"), "После возврата месяца показан его прежний лимит");
+
   const legacy = JSON.stringify({ categories: [...initialCategories], expenses: [{ amount: 5000, category: "Еда", date: localDate(), comment: "Старая запись" }] });
   localStorage.setItem("rashody", legacy);
   load();
   render();
   check(byId("month-total").textContent === "5 000 ₸" && byId("month-total-usd").textContent === "0,00 $" &&
-    localStorage.getItem("rashody") === legacy, "Старые записи читаются как тенге без перезаписи");
+    localStorage.getItem("rashody") === legacy && data.budgets.length === 0 && budgetForm().textContent.includes("Не задан"),
+    "Старые записи читаются как тенге без перезаписи, бюджеты не заданы");
+  const originalGet = Storage.prototype.getItem;
+  try {
+    Storage.prototype.getItem = () => { throw new Error("Storage unavailable"); };
+    load();
+    check(!byId("storage-error").hidden && byId("amount").disabled && budgetForm().querySelector("input").disabled,
+      "Отказ чтения блокирует изменения трат и бюджетов");
+    limit("100");
+  } finally {
+    Storage.prototype.getItem = originalGet;
+  }
+  check(localStorage.getItem("rashody") === legacy, "Отказ чтения не позволяет перезаписать сохранённые данные");
+  for (const budgets of [null, {}, [{ month: "2026-13", category: "Еда", amount: 1 }],
+    [{ month: currentMonth, category: "Нет такой", amount: 1 }], [{ month: currentMonth, category: "Еда", amount: 0 }],
+    [{ month: currentMonth, category: "Еда", amount: 1.5 }], [{ month: currentMonth, category: "Еда", amount: "100" }],
+    [{ month: currentMonth, category: "Еда", amount: 1 }, { month: currentMonth, category: "Еда", amount: 2 }],
+    [{ month: currentMonth, category: "Еда", amount: Number.MAX_SAFE_INTEGER }, { month: currentMonth, category: "Дом", amount: 1 }]]) {
+    const corrupt = JSON.stringify({ ...JSON.parse(legacy), budgets });
+    localStorage.setItem("rashody", corrupt);
+    load();
+    limit("100");
+    check(!byId("storage-error").hidden && budgetForm().querySelector("input").disabled &&
+      localStorage.getItem("rashody") === corrupt, "Повреждённый бюджет блокирует запись и не затирается");
+  }
   localStorage.setItem("rashody", "{");
   load();
   check(!byId("storage-error").hidden && byId("amount").disabled && localStorage.getItem("rashody") === "{", "Повреждённые данные не затираются");

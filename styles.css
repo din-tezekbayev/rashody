@@ -46,7 +46,13 @@ summary { color: #7c203a; cursor: pointer; min-height: 44px; padding: 12px 0; wi
 .optional { font-weight: 400; margin-left: 4px; }
 .form-footer { display: flex; gap: 16px; align-items: center; margin-top: 20px; }
 #save-status { font-size: 14px; color: #276341; }
-.history-section { margin-top: 24px; padding: 28px; background: white; border: 1px solid #dcd9dd; border-radius: 12px; }
+.history-section, .budget-section { margin-top: 24px; padding: 28px; background: white; border: 1px solid #dcd9dd; border-radius: 12px; }
+#budget-month, .budget-note { margin-top: 8px; color: #666168; }
+.budget-row { margin-top: 20px; padding-top: 20px; border-top: 1px solid #dcd9dd; }
+.budget-row h3 { margin: 0; font-size: 17px; overflow-wrap: anywhere; }
+.budget-saved { margin: 8px 0 16px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.budget-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+#budget-status { margin-top: 12px; color: #276341; }
 .section-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
 .period-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .quick-periods { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
@@ -70,7 +76,7 @@ footer { border-top: 1px solid #dcd9dd; padding-top: 18px; margin-top: 24px; }
   .page-header p { margin-top: 6px; }
   .monthly-total { padding: 22px; display: block; }
   .totals { text-align: left; margin-top: 16px; font-size: 34px; }
-  .entry-section, .history-section { padding: 20px; }
+  .entry-section, .history-section, .budget-section { padding: 20px; }
   .form-grid { grid-template-columns: 1fr; }
   .form-footer { align-items: start; flex-direction: column; gap: 10px; }
   .form-footer button { width: 100%; }

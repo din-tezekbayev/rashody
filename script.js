@@ -4,7 +4,8 @@ const STORAGE_KEY = "rashody";
 const initialCategories = ["Еда", "Транспорт", "Дом"];
 const byId = (id) => document.getElementById(id);
 const expenseForm = byId("expense-form");
-let data = { categories: [...initialCategories], expenses: [] };
+let data = { categories: [...initialCategories], expenses: [], budgets: [] };
+let storageReadable = true;
 
 function localDate(date = new Date()) {
   return `${String(date.getFullYear()).padStart(4, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -51,6 +52,7 @@ function fieldError(id, message) {
 }
 
 function save(next) {
+  if (!storageReadable) return false;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     data = next;
@@ -78,12 +80,98 @@ function load() {
     }
     parsed.expenses = parsed.expenses.map((expense) => ({ ...expense, currency: expense.currency === undefined ? "KZT" : expense.currency }));
     if (!Object.values(totals(parsed.expenses)).every(Number.isSafeInteger)) throw new Error("Invalid saved total");
+    if (parsed.budgets === undefined) parsed.budgets = [];
+    if (!Array.isArray(parsed.budgets)) throw new Error("Invalid budgets");
+    const budgetKeys = new Set();
+    const monthTotals = new Map();
+    for (const budget of parsed.budgets) {
+      if (!budget || typeof budget.month !== "string" || !validDate(`${budget.month}-01`) ||
+        !parsed.categories.includes(budget.category) || !Number.isSafeInteger(budget.amount) || budget.amount <= 0) {
+        throw new Error("Invalid budget");
+      }
+      const key = JSON.stringify([budget.month, budget.category]);
+      const sum = (monthTotals.get(budget.month) || 0) + budget.amount;
+      if (budgetKeys.has(key) || !Number.isSafeInteger(sum)) throw new Error("Invalid budget total");
+      budgetKeys.add(key);
+      monthTotals.set(budget.month, sum);
+    }
     data = parsed;
+    storageReadable = true;
   } catch {
-    byId("storage-error").textContent = "Не удалось прочитать сохранённые данные. Они не изменены. Добавление недоступно: проверьте разрешение браузера на хранение данных или восстановите сохранённые записи.";
+    storageReadable = false;
+    byId("storage-error").textContent = "Не удалось прочитать сохранённые данные. Они не изменены. Изменения недоступны: проверьте разрешение браузера на хранение данных или восстановите сохранённые записи.";
     byId("storage-error").hidden = false;
-    expenseForm.querySelectorAll("input, select, textarea, button").forEach((field) => { field.disabled = true; });
+    document.querySelectorAll("#expense-form input, #expense-form select, #expense-form textarea, #expense-form button, #budget-list input, #budget-list button")
+      .forEach((field) => { field.disabled = true; });
   }
+}
+
+function updateBudget(form, remove = false) {
+  byId("budget-status").textContent = "";
+  if (form.dataset.month !== localDate().slice(0, 7)) {
+    renderBudgets();
+    byId("budget-status").textContent = "Начался новый месяц. Задайте лимит заново.";
+    return;
+  }
+  const input = form.querySelector("input");
+  const amount = parseAmount(input.value, "KZT");
+  const budgets = data.budgets.filter((budget) => budget.month !== form.dataset.month || budget.category !== form.dataset.category);
+  const sum = budgets.filter((budget) => budget.month === form.dataset.month).reduce((total, budget) => total + budget.amount, 0);
+  const error = remove ? "" : amount === null ? "Введите положительный лимит в целых тенге, например 20 000."
+    : !Number.isSafeInteger(sum + amount) ? "Общий бюджет слишком велик для точного расчёта." : "";
+  fieldError(input.id, error);
+  if (error) {
+    input.focus();
+    return;
+  }
+  if (!remove) budgets.push({ month: form.dataset.month, category: form.dataset.category, amount });
+  if (!save({ ...data, budgets })) return;
+  input.value = remove ? "" : String(amount);
+  renderBudgets();
+  byId("budget-status").textContent = remove ? "Лимит убран" : "Лимит сохранён";
+  input.focus();
+}
+
+function renderBudgets() {
+  const list = byId("budget-list");
+  const month = localDate().slice(0, 7);
+  byId("budget-month").textContent = new Date().toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
+  if (list.dataset.month !== month || [...list.children].some((form, index) => form.dataset.category !== data.categories[index])) {
+    list.replaceChildren();
+    list.dataset.month = month;
+    byId("budget-status").textContent = "";
+  }
+  data.categories.forEach((category, index) => {
+    let form = list.children[index];
+    if (!form) {
+      form = byId("budget-row").content.firstElementChild.cloneNode(true);
+      form.dataset.month = month;
+      form.dataset.category = category;
+      form.querySelector("h3").id = `budget-category-${index}`;
+      form.querySelector("h3").textContent = category;
+      form.setAttribute("aria-labelledby", `budget-category-${index}`);
+      const id = `budget-limit-${index}`;
+      form.querySelector("label").htmlFor = id;
+      form.querySelector("input").id = id;
+      form.querySelector("input").setAttribute("aria-describedby", `${id}-error`);
+      form.querySelector(".error").id = `${id}-error`;
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        updateBudget(form);
+      });
+      form.querySelector('button[type="button"]').addEventListener("click", () => updateBudget(form, true));
+      list.append(form);
+    }
+    const amount = data.budgets.find((budget) => budget.month === month && budget.category === category)?.amount;
+    const saved = amount === undefined ? "" : String(amount);
+    if (form.dataset.amount !== saved) {
+      form.querySelector("input").value = saved;
+      form.dataset.amount = saved;
+      form.querySelector(".budget-saved").textContent = `Лимит: ${amount === undefined ? "Не задан" : money(amount, "KZT")}`;
+    }
+    form.querySelectorAll("input, button").forEach((field) => { field.disabled = !storageReadable; });
+    form.querySelector('button[type="button"]').disabled = !storageReadable || amount === undefined;
+  });
 }
 
 function renderCategories(selected = byId("category").value) {
@@ -95,6 +183,7 @@ function render() {
   const today = localDate();
   byId("month-label").textContent = new Date().toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
   renderTotals("month", data.expenses.filter((expense) => expense.date.slice(0, 7) === today.slice(0, 7)));
+  renderBudgets();
 
   const from = byId("period-from").value;
   const to = byId("period-to").value;
@@ -184,6 +273,7 @@ byId("save-category").addEventListener("click", () => {
   const existing = data.categories.find((category) => category.toLocaleLowerCase("ru-RU") === name.toLocaleLowerCase("ru-RU"));
   if (!existing && !save({ ...data, categories: [...data.categories, name] })) return;
   renderCategories(existing || name);
+  renderBudgets();
   fieldError("category", "");
   byId("new-category").value = "";
   byId("category-details").open = false;
