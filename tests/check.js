@@ -112,6 +112,12 @@
   newCategory(" Здоровье ");
   newCategory("ЗДОРОВЬЕ");
   check(byId("entry-categories").querySelectorAll("[data-category]").length === 4 && byId("category").value === "Здоровье", "Категория обрезана, выбрана и не дублируется");
+  const expensesBeforeDashboardCategory = data.expenses.length;
+  byId("new-dashboard-category").click();
+  byId("new-category").value = "Здоровье на дашборде";
+  categoryForm.requestSubmit();
+  check(!byId("expense-dialog").open && data.categories.includes("Здоровье на дашборде") &&
+    data.expenses.length === expensesBeforeDashboardCategory, "Категория из списка создаётся без траты");
   const persistenceFixture = localStorage.getItem("rashody");
   newCategory("<img src=x>");
   add("1", "KZT", localDate(), "<img src=x>", "<script>alert(1)</script>");
@@ -356,7 +362,7 @@
   dialog.dispatchEvent(new MouseEvent("click", { clientX: -1, clientY: -1 }));
   check(!dialog.open && data.budgets[0].amount === 100, "Нажатие фона закрывает окно без сохранения");
   reset();
-  check(byId("category-filters").children.length === 4 && chip().getAttribute("aria-pressed") === "true", "Все и каждая исходная категория доступны в чипах");
+  check(byId("category-filters").children.length === 5 && chip().getAttribute("aria-pressed") === "true", "Все, исходные категории и создание доступны в строке чипов");
   add("5000");
   add("2500", "KZT", daysAgo(6), "Транспорт");
   add("12000", "KZT", daysAgo(14), "Дом");

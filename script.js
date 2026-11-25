@@ -10,6 +10,7 @@ let storageReadable = true;
 let budgetsExpanded = false;
 let expenseDraft = false;
 let categoryDraftStarted = false;
+let categoryOnly = false;
 let categoryPreviewColor = "#1967D2";
 let expenseScrollTop = 0;
 let selectedCategory = "";
@@ -170,6 +171,10 @@ function setupDialog(dialog) {
 const showBudgetDialog = setupDialog(byId("budget-dialog"));
 const showPeriodDialog = setupDialog(byId("period-dialog"));
 const showExpenseDialog = setupDialog(byId("expense-dialog"));
+byId("expense-dialog").addEventListener("close", () => {
+  categoryOnly = false;
+  setCategoryScreen(false);
+});
 
 if (window.visualViewport) {
   const fitDialogs = () => {
@@ -461,10 +466,27 @@ function categoryChip(category, selected, onSelect) {
   return button;
 }
 
+function newCategoryChip() {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.id = "new-dashboard-category";
+  button.className = "category-chip";
+  button.textContent = "+ Категория";
+  button.disabled = !storageReadable;
+  button.addEventListener("click", () => {
+    if (document.querySelector("dialog[open]")) return;
+    categoryOnly = true;
+    setCategoryScreen(false);
+    showExpenseDialog();
+    byId("new-category-toggle").click();
+  });
+  return button;
+}
+
 function renderCategories(selected = byId("category").value) {
   byId("category").value = data.categories.includes(selected) ? selected : data.categories[0];
   byId("category-filters").replaceChildren(...["", ...data.categories].map((category) =>
-    categoryChip(category, selectedCategory === category, () => { selectedCategory = category; render(); })));
+    categoryChip(category, selectedCategory === category, () => { selectedCategory = category; render(); })), newCategoryChip());
   byId("entry-categories").replaceChildren(...data.categories.map((category) => {
     const button = categoryChip(category, byId("category").value === category, () => {
       byId("category").value = category;
@@ -733,6 +755,14 @@ byId("currency").addEventListener("change", () => {
 function finishCategoryCreation(name) {
   categoryDraftStarted = false;
   byId("new-category").value = "";
+  if (categoryOnly) {
+    categoryOnly = false;
+    renderCategories();
+    renderBudgets();
+    render();
+    byId("expense-dialog").close();
+    return;
+  }
   expenseDraft = true;
   renderCategories(name);
   renderBudgets();

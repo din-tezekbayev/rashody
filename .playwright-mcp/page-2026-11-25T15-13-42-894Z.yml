@@ -1,0 +1,56 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - heading "Расходы" [level=1] [ref=e4]
+    - paragraph [ref=e5]: Личный учёт расходов
+  - region "Бюджет месяца" [ref=e6]:
+    - heading "Бюджет месяца" [level=2] [ref=e7]
+    - paragraph [ref=e8]: ноябрь 2026 г.
+    - generic [ref=e9]:
+      - paragraph [ref=e10]:
+        - generic [ref=e11]: "Потрачено:"
+        - status [ref=e12]: 0 ₸
+      - paragraph [ref=e13]: "Общий бюджет: Не задан"
+      - paragraph [ref=e14]: "Осталось: —"
+      - paragraph [ref=e15]: Есть категории без лимита
+    - paragraph [ref=e16]:
+      - status [ref=e17]: 0,00 $
+      - text: · не входит в бюджет
+    - heading "По категориям" [level=3] [ref=e18]
+    - generic [ref=e19]:
+      - generic [ref=e20]:
+        - generic [ref=e24]:
+          - heading "Еда" [level=3] [ref=e25]
+          - paragraph [ref=e26]: 0 ₸ / Лимит не задан
+          - 'meter "Бюджет: Еда" [ref=e27]'
+          - paragraph [ref=e28]: "Осталось: —"
+        - 'button "Изменить лимит: Еда" [ref=e29] [cursor=pointer]'
+      - generic [ref=e32]:
+        - generic [ref=e37]:
+          - heading "Транспорт" [level=3] [ref=e38]
+          - paragraph [ref=e39]: 0 ₸ / Лимит не задан
+          - 'meter "Бюджет: Транспорт" [ref=e40]'
+          - paragraph [ref=e41]: "Осталось: —"
+        - 'button "Изменить лимит: Транспорт" [ref=e42] [cursor=pointer]'
+      - generic [ref=e45]:
+        - generic [ref=e49]:
+          - heading "Дом" [level=3] [ref=e50]
+          - paragraph [ref=e51]: 0 ₸ / Лимит не задан
+          - 'meter "Бюджет: Дом" [ref=e52]'
+          - paragraph [ref=e53]: "Осталось: —"
+        - 'button "Изменить лимит: Дом" [ref=e54] [cursor=pointer]'
+  - region "Список трат" [ref=e58]:
+    - generic [ref=e59]:
+      - heading "Список трат" [level=2] [ref=e60]
+      - generic [ref=e61]:
+        - 'button "Период трат: Все даты" [ref=e62] [cursor=pointer]':
+          - generic [ref=e66]: Все даты
+        - button "Добавить трату" [ref=e67] [cursor=pointer]
+    - group "Фильтр по категории" [ref=e70]:
+      - button "Все" [pressed] [ref=e71] [cursor=pointer]
+      - button "Еда" [ref=e74] [cursor=pointer]
+      - button "Транспорт" [ref=e75] [cursor=pointer]
+      - button "Дом" [ref=e76] [cursor=pointer]
+      - button "+ Категория" [ref=e77] [cursor=pointer]
+    - paragraph [ref=e78]: Пока нет трат. Нажмите +, чтобы добавить
+    - list "Траты"
+  - generic [ref=e79]: Данные сохраняются в этом браузере.
