@@ -46,6 +46,12 @@
     </template>
 
     <div class="activity-column">
+    <section class="report-section" aria-labelledby="report-heading">
+      <h2 id="report-heading">Отчёт за месяц</h2>
+      <p id="report-month" class="budget-note"></p>
+      <p class="report-totals" aria-live="polite">Итого: <output id="report-total">0 ₸</output> · <output id="report-total-usd">0,00 $</output></p>
+      <p id="report-empty" class="budget-note" hidden>За этот месяц трат нет</p>
+    </section>
     <section class="history-section" aria-labelledby="history-heading">
       <div class="section-header">
         <h2 id="history-heading">Список трат</h2>

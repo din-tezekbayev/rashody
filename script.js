@@ -693,7 +693,11 @@ function render() {
   byId("open-expense").disabled = !storageReadable;
   byId("add-expense").disabled = !storageReadable;
   const today = localDate();
-  renderTotals("month", data.expenses.filter((expense) => expense.date.slice(0, 7) === today.slice(0, 7)));
+  const monthExpenses = data.expenses.filter((expense) => expense.date.slice(0, 7) === today.slice(0, 7));
+  renderTotals("month", monthExpenses);
+  renderTotals("report", monthExpenses);
+  byId("report-month").textContent = new Date().toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
+  byId("report-empty").hidden = monthExpenses.length > 0;
   renderBudgets();
 
   const { from, to, label } = appliedPeriod;

@@ -16,7 +16,9 @@ h2 { font-size: 20px; font-weight: 650; }
 .page-header { margin-bottom: 24px; }
 .page-header p, .optional, footer, .budget-note { color: #5f6368; font-size: 14px; }
 .activity-column { min-width: 0; }
-.history-section, .budget-section { padding: 16px; background: white; border-radius: 16px; }
+.history-section, .budget-section, .report-section { padding: 16px; background: white; border-radius: 16px; }
+.report-section { margin-top: 24px; }
+.report-totals { margin-top: 12px; font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .history-section { margin-top: 24px; }
 .form-grid { display: grid; gap: 16px; }
 .field { min-width: 0; }
@@ -172,7 +174,7 @@ body:has(#save-notice:not([hidden])) main { padding-bottom: calc(264px + env(saf
 @media (min-width: 600px) {
   main { padding: 32px 24px calc(104px + env(safe-area-inset-bottom)); }
   .page-header { display: flex; align-items: baseline; justify-content: space-between; }
-  .history-section, .budget-section { padding: 24px; }
+  .history-section, .budget-section, .report-section { padding: 24px; }
   .form-grid { grid-template-columns: 1fr 1fr; }
 }
 @media (min-width: 1024px) {
