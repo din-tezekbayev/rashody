@@ -129,7 +129,14 @@ body:has(#save-notice:not([hidden])) main { padding-bottom: calc(264px + env(saf
 .custom-color-choice input { flex-shrink: 0; width: 20px; height: 20px; min-height: 20px; margin: 0; padding: 0; accent-color: #7c203a; }
 #category-color-picker { padding: 4px; cursor: pointer; }
 #category-draft-note { margin-bottom: 8px; }
-.category-icon-note { margin-top: 20px; color: #5f6368; font-size: 14px; }
+.category-icon-fieldset { min-width: 0; padding: 0; margin: 20px 0 0; border: 0; }
+.category-icon-fieldset legend { padding: 0; margin-bottom: 8px; font-weight: 650; }
+#category-icon-toggle { width: 100%; margin-top: 8px; }
+#category-icon-options { margin-top: 12px; }
+.icon-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 8px; margin-top: 12px; }
+.icon-option { min-height: 64px; padding: 6px; display: grid; place-items: center; gap: 2px; color: #202124; background: white; border-color: #74777c; font-size: 14px; line-height: 1.2; }
+.icon-option[aria-checked="true"] { border: 3px solid #7c203a; background: #f8edf1; }
+.icon-option svg { width: 22px; height: 22px; }
 #select-existing-category { margin-top: 8px; width: 100%; }
 .category-create { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 16px; }
 .category-create svg { flex-shrink: 0; }

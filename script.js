@@ -12,6 +12,7 @@ let expenseDraft = false;
 let categoryDraftStarted = false;
 let categoryOnly = false;
 let categoryPreviewColor = "#1967D2";
+let categoryPreviewIcon = "tag";
 let expenseScrollTop = 0;
 let selectedCategory = "";
 let appliedPeriod = { from: "", to: "", label: "Все даты" };
@@ -32,8 +33,24 @@ const categoryIcons = {
   food: '<path d="M5 3v6a3 3 0 0 0 6 0V3M8 3v18M19 21V3c-4 3-4 9 0 9"/>',
   transport: '<rect x="4" y="4" width="16" height="14" rx="3"/><path d="M4 11h16M7 21v-3M17 21v-3M8 15h.01M16 15h.01"/>',
   home: '<path d="m3 11 9-8 9 8M5 10v11h14V10M9 21v-7h6v7"/>',
-  tag: '<path d="M3 3h8l10 10-8 8L3 11z"/><circle cx="7" cy="7" r="1"/>'
+  tag: '<path d="M3 3h8l10 10-8 8L3 11z"/><circle cx="7" cy="7" r="1"/>',
+  shopping: '<path d="M5 8h14l-1 13H6zM9 9a3 3 0 0 1 6 0"/>', health: '<path d="M12 21s-8-5-8-11a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 6-6 11-6 11z"/>',
+  sport: '<circle cx="12" cy="5" r="2"/><path d="m8 21 2-8 2 2 3-4 3 2M10 9l-3 4 3 2"/>', cafe: '<path d="M5 8h11v8a4 4 0 0 1-8 0V8zM16 10h2a2 2 0 0 1 0 4h-2M4 21h13"/>',
+  education: '<path d="m3 9 9-5 9 5-9 5zM7 12v5c3 2 7 2 10 0v-5"/>', fun: '<path d="M5 5h14v14H5zM8 10h.01M16 10h.01M8 15c2 2 6 2 8 0"/>',
+  travel: '<path d="M3 13h18M12 3v18M5 7h14M5 19h14"/><circle cx="12" cy="12" r="9"/>', phone: '<path d="M7 3h3l2 5-2 2c1 2 3 4 5 5l2-2 4 2v3c0 2-2 3-4 3C9 21 3 15 3 7c0-2 2-4 4-4z"/>',
+  pets: '<circle cx="12" cy="14" r="5"/><circle cx="6" cy="8" r="2"/><circle cx="11" cy="5" r="2"/><circle cx="16" cy="5" r="2"/><circle cx="19" cy="9" r="2"/>', gifts: '<path d="M4 10h16v11H4zM3 6h18v4H3zM12 6v15M12 6c-4 0-5-5-1-4l1 4c4 0 5-5 1-4l-1 4"/>',
+  clothes: '<path d="m8 4 4 3 4-3 5 4-3 4-2-1v10H8V11l-2 1-3-4z"/>', beauty: '<path d="m8 3 8 8M5 20l5-9 3 3-8 6zM14 4l2-2 6 6-2 2z"/>',
+  work: '<rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18M10 12v2h4v-2"/>', tools: '<path d="m14 6 4-4 2 2-4 4M13 7 4 16l4 4 9-9M5 5l4 4"/>',
+  family: '<circle cx="9" cy="8" r="3"/><circle cx="16" cy="9" r="2"/><path d="M3 21c0-4 3-7 6-7s6 3 6 7M14 21c0-3 1-5 4-5s3 2 3 5"/>', groceries: '<path d="M4 5h2l2 11h10l2-8H7M9 21h.01M17 21h.01"/>',
+  utilities: '<path d="M12 2c4 5 6 8 6 12a6 6 0 0 1-12 0c0-4 2-7 6-12z"/>', subscriptions: '<path d="M4 7h16v10H4zM8 11h8M8 15h5"/>',
+  wallet: '<path d="M4 6h14a2 2 0 0 1 2 2v11H4zM4 6V4h12M15 13h5"/>', other: '<circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 1 1 5 2c-2 1-2 2-2 3M12 17h.01"/>'
 };
+const categoryIconOptions = [
+  ["tag", "Метка"], ["food", "Еда"], ["transport", "Транспорт"], ["home", "Дом"], ["shopping", "Покупки"], ["health", "Здоровье"],
+  ["sport", "Спорт"], ["cafe", "Кафе"], ["education", "Образование"], ["fun", "Развлечения"], ["travel", "Путешествия"], ["phone", "Связь"],
+  ["pets", "Питомцы"], ["gifts", "Подарки"], ["clothes", "Одежда"], ["beauty", "Красота"], ["work", "Работа"], ["tools", "Инструменты"],
+  ["family", "Семья"], ["groceries", "Продукты"], ["utilities", "Коммунальные"], ["subscriptions", "Подписки"], ["wallet", "Кошелёк"], ["other", "Другое"]
+];
 
 function colorRgb(color) {
   return color.slice(1).match(/../g).map((channel) => parseInt(channel, 16));
@@ -522,11 +539,36 @@ function categoryHex() {
 
 function updateCategoryPreview() {
   const preview = byId("category-preview");
-  const appearance = colorAppearance(categoryPreviewColor);
+  const appearance = colorAppearance(categoryPreviewColor, categoryPreviewIcon);
   byId("category-preview-icon").replaceChildren(appearanceIcon(appearance, preview));
   byId("category-preview-name").textContent = normalizedCategoryName(byId("new-category").value) || "Название категории";
   const preset = categoryPalette.find((option) => option.color === categoryPreviewColor);
   byId("category-color-label").textContent = `${byId("category-color-custom").checked ? "Свой цвет" : preset.name} · ${categoryPreviewColor}`;
+  byId("category-icon-label").textContent = `Выбрано: ${categoryIconOptions.find(([icon]) => icon === categoryPreviewIcon)[1]}`;
+}
+
+function renderCategoryIcons() {
+  const query = byId("category-icon-search").value.trim().toLocaleLowerCase("ru-RU");
+  const options = categoryIconOptions.filter(([, name]) => name.toLocaleLowerCase("ru-RU").includes(query));
+  byId("category-icon-empty").hidden = options.length > 0;
+  byId("category-icons").replaceChildren(...options.map(([icon, name]) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "icon-option";
+    button.setAttribute("role", "radio");
+    button.setAttribute("aria-checked", String(icon === categoryPreviewIcon));
+    button.dataset.icon = icon;
+    button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${categoryIcons[icon]}</svg><span>${name}</span>`;
+    button.addEventListener("click", () => { categoryPreviewIcon = icon; renderCategoryIcons(); updateCategoryPreview(); });
+    button.addEventListener("keydown", (event) => {
+      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+      event.preventDefault();
+      const buttons = [...byId("category-icons").querySelectorAll("button")];
+      const index = buttons.indexOf(button);
+      buttons[(index + (event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1) + buttons.length) % buttons.length].focus();
+    });
+    return button;
+  }));
 }
 
 function chooseCategoryColor() {
@@ -570,11 +612,15 @@ byId("new-category-toggle").addEventListener("click", () => {
     const colors = data.categories.map((category) => categoryAppearance(category).color);
     const counts = categoryPalette.map(({ color }) => colors.filter((used) => used === color).length);
     categoryPreviewColor = categoryPalette[counts.indexOf(Math.min(...counts))].color;
+    categoryPreviewIcon = "tag";
     byId("new-category").value = "";
     byId("category-hex").value = categoryPreviewColor;
     byId("category-color-picker").value = categoryPreviewColor;
     categoryForm.querySelectorAll('[name="category-color"]').forEach((input) => { input.checked = input.value === categoryPreviewColor; });
     byId("category-custom-color").hidden = true;
+    byId("category-icon-options").hidden = true;
+    byId("category-icon-toggle").setAttribute("aria-expanded", "false");
+    byId("category-icon-search").value = "";
     byId("select-existing-category").hidden = true;
     byId("category-storage-error").hidden = true;
     fieldError("new-category", "");
@@ -585,6 +631,7 @@ byId("new-category-toggle").addEventListener("click", () => {
   byId("category-draft-note").hidden = !resumed;
   categoryForm.querySelectorAll("input, button").forEach((control) => { control.disabled = false; });
   updateCategoryPreview();
+  renderCategoryIcons();
   setCategoryScreen(true);
   byId("new-category").focus();
 });
@@ -634,6 +681,13 @@ function syncCategoryPicker() {
 }
 byId("category-color-picker").addEventListener("input", syncCategoryPicker);
 byId("category-color-picker").addEventListener("change", syncCategoryPicker);
+byId("category-icon-toggle").addEventListener("click", () => {
+  const options = byId("category-icon-options");
+  options.hidden = !options.hidden;
+  byId("category-icon-toggle").setAttribute("aria-expanded", String(!options.hidden));
+  if (!options.hidden) byId("category-icon-search").focus();
+});
+byId("category-icon-search").addEventListener("input", renderCategoryIcons);
 
 function render() {
   byId("open-expense").disabled = !storageReadable;
@@ -792,7 +846,7 @@ categoryForm.addEventListener("submit", (event) => {
   }
   const categoryStyles = Array.isArray(data.categoryStyles)
     ? data.categoryStyles.filter((style) => !style || style.category !== name) : [];
-  if (!save({ ...data, categories: [...data.categories, name], categoryStyles: [...categoryStyles, { category: name, color, icon: "tag" }] })) {
+  if (!save({ ...data, categories: [...data.categories, name], categoryStyles: [...categoryStyles, { category: name, color, icon: categoryPreviewIcon }] })) {
     byId("category-storage-error").textContent = byId("storage-error").textContent;
     byId("category-storage-error").hidden = false;
     byId("category-storage-error").scrollIntoView({ block: "nearest" });

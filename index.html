@@ -167,7 +167,17 @@
           </div>
         </div>
       </fieldset>
-      <p class="category-icon-note">Иконка: Метка</p>
+      <fieldset class="category-icon-fieldset">
+        <legend>Иконка</legend>
+        <p id="category-icon-label" class="budget-note"></p>
+        <button id="category-icon-toggle" class="secondary" type="button" aria-expanded="false" aria-controls="category-icon-options">Выбрать иконку</button>
+        <div id="category-icon-options" hidden>
+          <label for="category-icon-search">Поиск иконки</label>
+          <input id="category-icon-search" type="search" placeholder="Например, Спорт">
+          <p id="category-icon-empty" class="budget-note" hidden>Иконка не найдена</p>
+          <div id="category-icons" class="icon-grid" role="radiogroup" aria-label="Выбор иконки"></div>
+        </div>
+      </fieldset>
     </form>
     <div class="modal-actions">
       <button id="add-expense" type="submit" form="expense-form">Добавить</button>
