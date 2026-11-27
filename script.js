@@ -698,6 +698,24 @@ function render() {
   renderTotals("report", monthExpenses);
   byId("report-month").textContent = new Date().toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
   byId("report-empty").hidden = monthExpenses.length > 0;
+  const reportCategories = byId("report-categories");
+  reportCategories.replaceChildren();
+  for (const currency of ["KZT", "USD"]) {
+    const ranked = data.categories.map((category) => ({ category, amount: monthExpenses
+      .filter((expense) => expense.currency === currency && expense.category === category)
+      .reduce((sum, expense) => sum + expense.amount, 0) }))
+      .filter((item) => item.amount > 0).sort((a, b) => b.amount - a.amount).slice(0, 3);
+    if (!ranked.length) continue;
+    const heading = document.createElement("h3");
+    heading.textContent = `Категории · ${currency === "KZT" ? "₸" : "$"}`;
+    const list = document.createElement("ol");
+    ranked.forEach(({ category, amount }) => {
+      const item = document.createElement("li");
+      item.textContent = `${category} — ${money(amount, currency)}`;
+      list.append(item);
+    });
+    reportCategories.append(heading, list);
+  }
   renderBudgets();
 
   const { from, to, label } = appliedPeriod;
