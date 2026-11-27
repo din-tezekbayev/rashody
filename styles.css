@@ -21,6 +21,8 @@ h2 { font-size: 20px; font-weight: 650; }
 .report-totals { margin-top: 12px; font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 #report-categories h3 { font-size: 16px; margin-top: 16px; }
 #report-categories ol { margin: 8px 0 0; padding-left: 24px; overflow-wrap: anywhere; }
+.report-comparison { margin-top: 16px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.report-comparison h3 { font-size: 16px; }
 .history-section { margin-top: 24px; }
 .form-grid { display: grid; gap: 16px; }
 .field { min-width: 0; }

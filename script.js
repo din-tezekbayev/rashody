@@ -694,6 +694,15 @@ function render() {
   byId("add-expense").disabled = !storageReadable;
   const today = localDate();
   const monthExpenses = data.expenses.filter((expense) => expense.date.slice(0, 7) === today.slice(0, 7));
+  const now = new Date();
+  const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const previousTotals = totals(data.expenses.filter((expense) => expense.date.slice(0, 7) === localDate(previousMonth).slice(0, 7)));
+  const currentTotals = totals(monthExpenses);
+  byId("report-previous-month").textContent = previousMonth.toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
+  for (const currency of ["KZT", "USD"]) {
+    const difference = currentTotals[currency] - previousTotals[currency];
+    byId(`report-compare-${currency.toLowerCase()}`).textContent = `Было ${money(previousTotals[currency], currency)} · ${difference === 0 ? "без изменений" : `на ${money(Math.abs(difference), currency)} ${difference > 0 ? "больше" : "меньше"}`}`;
+  }
   renderTotals("month", monthExpenses);
   renderTotals("report", monthExpenses);
   byId("report-month").textContent = new Date().toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
@@ -704,7 +713,7 @@ function render() {
     const ranked = data.categories.map((category) => ({ category, amount: monthExpenses
       .filter((expense) => expense.currency === currency && expense.category === category)
       .reduce((sum, expense) => sum + expense.amount, 0) }))
-      .filter((item) => item.amount > 0).sort((a, b) => b.amount - a.amount).slice(0, 3);
+      .filter((item) => item.amount > 0).sort((a, b) => b.amount - a.amount);
     if (!ranked.length) continue;
     const heading = document.createElement("h3");
     heading.textContent = `Категории · ${currency === "KZT" ? "₸" : "$"}`;
