@@ -689,7 +689,29 @@ byId("category-icon-toggle").addEventListener("click", () => {
 });
 byId("category-icon-search").addEventListener("input", renderCategoryIcons);
 
+byId("copy-report").addEventListener("click", async () => {
+  const lines = [`Отчёт за ${byId("report-month").textContent}`, `Итого: ${byId("report-total").textContent} · ${byId("report-total-usd").textContent}`];
+  if (!byId("report-empty").hidden) lines.push(byId("report-empty").textContent);
+  byId("report-categories").querySelectorAll("h3, li").forEach((element) => lines.push(element.textContent));
+  lines.push(`Прошлый месяц: ${byId("report-previous-month").textContent}`, byId("report-compare-kzt").textContent, byId("report-compare-usd").textContent);
+  const text = lines.join("\n");
+  const fallback = byId("copy-report-fallback");
+  try {
+    await navigator.clipboard.writeText(text);
+    fallback.hidden = true;
+    byId("copy-report-status").textContent = "Отчёт скопирован";
+  } catch {
+    byId("report-text").value = text;
+    fallback.hidden = false;
+    byId("copy-report-status").textContent = "Не удалось скопировать. Выделите текст ниже и скопируйте вручную.";
+    byId("report-text").focus();
+    byId("report-text").select();
+  }
+});
+
 function render() {
+  byId("copy-report-fallback").hidden = true;
+  byId("copy-report-status").textContent = "";
   byId("open-expense").disabled = !storageReadable;
   byId("add-expense").disabled = !storageReadable;
   const today = localDate();
